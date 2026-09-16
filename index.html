@@ -1,0 +1,2754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Pub</title>
+<style>
+  html, body {
+    margin:0; height:100%; overflow:hidden; background:#03040a;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  }
+  canvas { display:block; -webkit-user-drag:none; touch-action:none; }
+  #hud {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    transition:opacity .55s ease; pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(22,14,8,.74), rgba(6,4,3,.94));
+    color:#bfeaf5; text-align:center;
+    font:400 15px/1.7 "Helvetica Neue", Arial, sans-serif;
+  }
+  #hud .panel { max-width:34ch; }
+  #hud h1 {
+    font-size:38px; letter-spacing:.14em; margin:0 0 .2em; font-weight:800;
+    font-family:"Arial Black", Impact, sans-serif; color:#f6faff;
+    text-shadow:0 0 16px #ff3b3b, 0 0 44px rgba(43,108,255,.6);
+  }
+  #hud p { margin:.2em 0; color:#c9a06a; letter-spacing:.16em; text-transform:uppercase; font-size:13px; }
+  #hud .keys { margin-top:1.5em; font-size:12px; color:#7d8796; letter-spacing:.08em; text-transform:none; }
+  #hint {
+    position:fixed; left:16px; bottom:14px; color:#6b5c45; pointer-events:none;
+    font:400 12px/1.4 ui-monospace, Menlo, Consolas, monospace; letter-spacing:.08em;
+  }
+  #stats {
+    position:fixed; left:14px; top:14px; z-index:30; display:none; pointer-events:none;
+    padding:9px 12px; background:rgba(6,10,15,.82); border:1px solid #27394c; color:#9fe0ff;
+    font:500 11px/1.6 ui-monospace, Menlo, Consolas, monospace; white-space:pre;
+  }
+  #jb, #chat {
+    position:fixed; z-index:22; display:none; overflow:hidden;
+    background:linear-gradient(160deg, #0d1219 0%, #070a0f 60%, #05080c 100%);
+    border:1px solid #223244; color:#d6e4f2;
+    box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 0 30px rgba(0,0,0,.55),
+               inset 0 0 40px rgba(20,60,90,.18);
+    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+    font:400 13px/1.5 "Helvetica Neue", Arial, sans-serif;
+  }
+  #jb { right:22px; top:50%; transform:translateY(-50%); width:318px; }
+  .jb-head {
+    position:relative; display:flex; align-items:center; justify-content:space-between;
+    padding:11px 14px 10px; cursor:move; touch-action:none;
+    background:linear-gradient(90deg, rgba(255,59,59,.22), rgba(43,108,255,.16) 55%, transparent);
+    font:800 13px/1 "Arial Narrow", Arial, sans-serif; letter-spacing:.26em;
+    text-transform:uppercase; color:#eaf4ff;
+  }
+  .jb-head::after {
+    content:''; position:absolute; left:0; right:0; bottom:0; height:2px;
+    background:linear-gradient(90deg, #ff3b3b, #2ee6ff 60%, transparent);
+  }
+  .jb-head button { background:none; border:0; color:#8fb4cf; font-size:14px; cursor:pointer; }
+  .jb-head button:hover { color:#fff; }
+  .jb-note {
+    margin:9px 14px; font:600 10px/1.5 ui-monospace, Menlo, monospace;
+    letter-spacing:.16em; text-transform:uppercase; color:#5b7a92;
+  }
+  #jb-list { list-style:none; margin:0; padding:2px 0 4px; max-height:206px; overflow:auto; }
+  #jb-list li {
+    position:relative; padding:8px 14px 8px 16px; cursor:pointer; color:#9fb6c9;
+    font:500 12px/1.4 ui-monospace, Menlo, monospace; letter-spacing:.04em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    border-left:2px solid transparent;
+  }
+  #jb-list li:hover { background:rgba(46,230,255,.06); color:#d6e4f2; }
+  #jb-list li.on {
+    color:#2ee6ff; border-left-color:#2ee6ff; background:rgba(46,230,255,.1);
+    text-shadow:0 0 12px rgba(46,230,255,.5);
+  }
+  #jb-list li.jb-empty { color:#4a6072; cursor:default; border-left-color:transparent; }
+  #jb-list li.bad { color:#7a4a54; text-decoration:line-through; }
+  .jb-ctrls {
+    display:flex; align-items:center; gap:6px; padding:11px 14px;
+    border-top:1px solid #1a2836; background:rgba(8,14,20,.6);
+  }
+  .jb-ctrls button {
+    flex:0 0 auto; min-width:40px; padding:8px 0; cursor:pointer; color:#bcd4e8;
+    background:#111a24; border:1px solid #27394c; font-size:11px; letter-spacing:.1em;
+    clip-path:polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+  }
+  .jb-ctrls button:hover { border-color:#2ee6ff; color:#fff; box-shadow:0 0 12px rgba(46,230,255,.3); }
+  .jb-ctrls input { flex:1 1 auto; min-width:0; accent-color:#2ee6ff; }
+
+  /* ---- chat ---- */
+  #chat { left:22px; top:50%; transform:translateY(-50%); width:344px; }
+  .chat-title { letter-spacing:.2em; font-size:13px; }
+  .chat-title em {
+    display:inline-block; margin-left:10px; font-style:normal;
+    font:400 9.5px/1 ui-monospace, Menlo, monospace;
+    letter-spacing:.14em; text-transform:none; color:#5f89a6;
+  }
+  #chat-log {
+    position:relative; height:288px; overflow-y:auto; padding:13px 14px 6px;
+    display:flex; flex-direction:column; gap:9px;
+    background-image:repeating-linear-gradient(0deg, rgba(120,190,255,.035) 0 1px, transparent 1px 3px);
+  }
+  .msg-wrap { display:flex; flex-direction:column; max-width:88%; }
+  .msg-wrap.ejak { align-self:flex-start; align-items:flex-start; }
+  .msg-wrap.you  { align-self:flex-end;   align-items:flex-end; }
+  .msg-wrap.note { align-self:center;     align-items:center; max-width:100%; }
+  .msg-label {
+    margin:0 2px 3px; font:700 9px/1 ui-monospace, Menlo, monospace;
+    letter-spacing:.2em; color:#587a94;
+  }
+  .msg-wrap.ejak .msg-label { color:#2ee6ff; }
+  .msg {
+    padding:8px 11px; white-space:pre-wrap; word-wrap:break-word;
+    font-size:12.5px; line-height:1.55;
+    clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+  .msg.you  { background:#16232f; color:#cfe2f4; border-right:2px solid #2b6cff; }
+  .msg.ejak { background:rgba(46,230,255,.08); color:#dff2ff; border-left:2px solid #2ee6ff; }
+  .msg.pending { opacity:.5; font-style:italic; }
+  .msg.err { background:rgba(255,59,59,.12); color:#ffc9c9; border-left-color:#ff3b3b; }
+  .msg.note {
+    background:none; color:#5b7a92; text-align:center;
+    font:600 10px/1.6 ui-monospace, Menlo, monospace; letter-spacing:.16em; text-transform:uppercase;
+  }
+  .chat-row {
+    display:flex; gap:8px; padding:11px 14px; border-top:1px solid #1a2836;
+    background:rgba(8,14,20,.6);
+  }
+  #chat-in {
+    flex:1; min-width:0; padding:9px 11px; color:#e2eef8;
+    background:#0b131b; border:1px solid #27394c;
+    font:400 12.5px "Helvetica Neue", Arial, sans-serif;
+    clip-path:polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+  }
+  #chat-in::placeholder { color:#4a6072; }
+  #chat-in:focus { outline:none; border-color:#2ee6ff; box-shadow:0 0 14px rgba(46,230,255,.22); }
+  #chat-send {
+    padding:9px 15px; cursor:pointer; color:#bcd4e8; background:#111a24; border:1px solid #27394c;
+    font:800 11px "Arial Narrow", Arial, sans-serif; letter-spacing:.16em; text-transform:uppercase;
+    clip-path:polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+  }
+  #chat-send:hover { border-color:#2ee6ff; color:#fff; box-shadow:0 0 12px rgba(46,230,255,.3); }
+
+  /* ---- exit dialog ---- */
+  #exit {
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:25;
+    display:none; width:320px; padding:22px 24px 20px; text-align:center;
+    background:rgba(10,8,6,.97); color:#e9e2d4; border:1px solid #6b3a1c; border-radius:6px;
+    box-shadow:0 0 0 1px rgba(255,59,59,.35), 0 0 40px rgba(0,0,0,.6);
+    font:400 13px/1.5 Arial, Helvetica, sans-serif;
+  }
+  .exit-q {
+    margin:0 0 4px; font:800 22px/1.2 "Arial Black", Impact, sans-serif;
+    letter-spacing:.06em; color:#fff;
+  }
+  .exit-sub { margin:0 0 16px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8b7a63; }
+  .exit-row { display:flex; gap:10px; }
+  .exit-row button {
+    flex:1; padding:10px 0; cursor:pointer; border-radius:3px; font:700 12px/1 Arial, sans-serif;
+    letter-spacing:.08em; background:#1d140b; border:1px solid #6b3a1c; color:#e9e2d4;
+  }
+  #exit-go:hover { border-color:#ff3b3b; color:#fff; }
+  #exit-stay:hover { border-color:#8b7a63; }
+  #exit-go[disabled] { opacity:.45; cursor:not-allowed; }
+  /* Kept last on purpose: these rules have the same specificity as the desktop
+     ones above, so they only win by coming after them. Keep them last. */
+  @media (pointer: coarse), (max-width: 700px) {
+    #chat { left:8px; right:8px; top:8px; bottom:auto; width:auto; transform:none; }
+    #jb {
+      left:8px; right:auto; bottom:8px; top:auto; transform:none;
+      width:296px; max-width:calc(100% - 16px);
+    }
+    #chat, #jb {
+      background:rgba(9,14,20,.55);
+      -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+      border-color:rgba(70,110,145,.55);
+    }
+    #chat-log { height:120px; }
+    #chat-log .msg { font-size:12px; }
+    .chat-row { padding:8px 10px; background:rgba(6,10,15,.45); }
+    #chat-in { padding:8px 10px; }
+    #chat .jb-head { padding:8px 11px; font-size:11px; }
+
+    #jb .jb-head { cursor:default; font-size:10.5px; padding:7px 10px; letter-spacing:.2em; }
+    #jb-list { max-height:92px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+    #jb-list li { padding:6px 11px 6px 12px; font-size:12px; letter-spacing:0; }
+    .jb-note { display:none; }
+    .jb-ctrls { gap:4px; padding:6px 8px; background:rgba(6,10,15,.45); }
+    .jb-ctrls button { min-width:24px; padding:5px 0; font-size:9.5px; }
+  }
+</style>
+</head>
+<body>
+<div id="hud"><div class="panel">
+  <h1>WELCOME TO THE PUB</h1>
+  <p>grab a beer</p>
+</div></div>
+<div id="hint">esc to release the mouse</div>
+<div id="stats"></div>
+
+<div id="chat">
+  <div class="jb-head chat-title">
+    <span>E-JAK<em>Electronic Jak</em></span>
+    <button id="chat-close" title="close">&#10005;</button>
+  </div>
+  <div id="chat-log"></div>
+  <div class="chat-row">
+    <input id="chat-in" type="text" placeholder="say something&hellip;" autocomplete="off">
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+
+<div id="exit">
+  <p class="exit-q">Leave The Pub?</p>
+  <p class="exit-sub" id="exit-sub">&nbsp;</p>
+  <div class="exit-row">
+    <button id="exit-go">Head out</button>
+    <button id="exit-stay">Another Beer</button>
+  </div>
+</div>
+
+<div id="jb">
+  <div class="jb-head"><span>JUKEBOX</span><button id="jb-close" title="close">&#10005;</button></div>
+  <p class="jb-note" id="jb-src">loading playlist&hellip;</p>
+  <ul id="jb-list"><li class="jb-empty">loading playlist&hellip;</li></ul>
+  <div class="jb-ctrls">
+    <button id="jb-prev" title="previous">&#9664;&#9664;</button>
+    <button id="jb-play" title="play / pause">&#9654;</button>
+    <button id="jb-next" title="next">&#9654;&#9654;</button>
+    <input id="jb-vol" type="range" min="0" max="1" step="0.01" value="0.45" title="volume">
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------------------------------------------------------------- room + look
+const W = 16, D = 12, H = 3.6;          // width (x), depth (z), height (y)
+const EYE = 1.65;
+const ROOM = { hw: W / 2, hd: D / 2, h: H };
+const FOG = 0.042;
+
+const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789&#/:.-";
+const RAIN_COLORS = ["#ff3b3b", "#f4f6ff", "#2b6cff", "#ff4fa3", "#a855f7", "#2ee6ff"];
+const hexToRgbString = h => {
+  const c = new THREE.Color(h);
+  return [c.r, c.g, c.b].map(v => Math.round(v * 255)).join(",");
+};
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const touch   = matchMedia("(pointer: coarse)").matches;
+
+// ---------------------------------------------------------------- renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Phones have dense screens and weak GPUs, which is the worst combination:
+// rendering at 2x there costs four times the pixels for no visible gain.
+// 1.0 on a phone is noticeably soft. Start at 1.25 and let the adaptive step
+// below walk it down to 0.75 only if that particular device can't keep up.
+const PR_CAP = Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.25 : 1.5);
+let pixelRatio = PR_CAP;
+renderer.setPixelRatio(pixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = false;              // nothing casts shadows any more
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06040a);
+scene.fog = new THREE.FogExp2(0x06040a, FOG);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 120);
+camera.position.set(0, EYE, 4.5);
+camera.rotation.order = 'YXZ';
+
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+/* =====================================================================
+   MATRIX RAIN (drawn to an offscreen canvas used on the walls)
+   ===================================================================== */
+const RAIN = (() => {
+  const W = 1024, H = 512;                 // texture size (power of two)
+  const rc = document.createElement("canvas");
+  rc.width = W; rc.height = H;
+  const rctx = rc.getContext("2d");
+  const fontSize = 18;
+  const chars = GLYPHS;
+  const COLORS = RAIN_COLORS.map(hexToRgbString);
+  const WHITE = "245,245,255";
+  const BG = "3,4,10";
+  const pick = () => COLORS[Math.floor(Math.random() * COLORS.length)];
+
+  const DENSITY = 0.33;                       // fraction of columns that actually run
+  const columns = Math.floor(W / fontSize);
+  const drops = [];
+  const live = [];
+  rctx.fillStyle = "rgb(" + BG + ")";
+  rctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < columns; i++) {
+    drops.push({ y: Math.random() * H / fontSize, color: pick(), speed: 0.35 + Math.random() * 0.5 });
+    live.push(Math.random() < DENSITY);
+  }
+
+  const tex = new THREE.CanvasTexture(rc);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+
+  function drawFrozen() {
+    rctx.font = fontSize + "px monospace";
+    for (let i = 0; i < columns; i++) {
+      if (!live[i]) continue;
+      const x = i * fontSize;
+      const start = Math.random() * H;
+      const len = 10 + Math.floor(Math.random() * 30);
+      rctx.shadowColor = "rgba(" + drops[i].color + ",0.5)";
+      rctx.shadowBlur = 6;
+      for (let j = 0; j < len; j++) {
+        const y = start + j * fontSize;
+        if (y < 0 || y > H) continue;
+        const ch = chars.charAt(Math.floor(Math.random() * chars.length));
+        const fade = 1 - (j / len);
+        const col = (ch >= "0" && ch <= "9") ? WHITE : drops[i].color;
+        rctx.fillStyle = "rgba(" + col + "," + (0.2 + fade * 0.55) + ")";
+        rctx.fillText(ch, x, y);
+      }
+    }
+    rctx.shadowBlur = 0;
+    tex.needsUpdate = true;
+  }
+
+  let last = 0;
+  function update(t) {
+    if (reduced || t - last < 66) return;
+    last = t;
+    rctx.fillStyle = "rgba(" + BG + ",0.05)";
+    rctx.fillRect(0, 0, W, H);
+    rctx.font = fontSize + "px monospace";
+    rctx.shadowBlur = 6;
+    for (let i = 0; i < columns; i++) {
+      if (!live[i]) continue;
+      const d = drops[i];
+      const ch = chars.charAt(Math.floor(Math.random() * chars.length));
+      const x = i * fontSize;
+      const y = d.y * fontSize;
+      rctx.shadowColor = "rgba(" + d.color + ",0.55)";
+      rctx.fillStyle = (ch >= "0" && ch <= "9") ? "rgba(" + WHITE + ",0.95)" : "rgba(" + d.color + ",0.92)";
+      rctx.fillText(ch, x, y);
+      d.y += d.speed;
+      if (y > H && Math.random() > 0.955) { d.y = 0; d.color = pick(); }
+    }
+    rctx.shadowBlur = 0;
+    tex.needsUpdate = true;
+  }
+
+  if (reduced) drawFrozen();
+  return { tex, update, freeze: drawFrozen };
+})();
+
+// Each wall needs its own texture object so the glyphs keep a square aspect on
+// walls of different lengths; the clones share the one canvas RAIN paints.
+const rainTextures = [];
+function rainTex(wallWidth) {
+  const t = RAIN.tex.clone();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(wallWidth / 16, 0.45);
+  t.needsUpdate = true;
+  rainTextures.push(t);
+  return t;
+}
+
+// ---------------------------------------------------------------- materials
+const RED = 0xff3b3b, BLUE = 0x2b6cff, WHITE = 0xf4f6ff, AMBER = 0xffb347;
+
+function plankTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#432a19'; x.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 512; i += 32) {
+    for (let g = 0; g < 46; g++) {
+      const v = 0.12 + Math.random() * 0.18;
+      x.fillStyle = 'rgba(' + (118 + Math.random() * 40 | 0) + ',' +
+                              (76 + Math.random() * 28 | 0) + ',' +
+                              (44 + Math.random() * 20 | 0) + ',' + v.toFixed(2) + ')';
+      x.fillRect(Math.random() * 512, i + 3 + Math.random() * 26, 24 + Math.random() * 110, 1);
+    }
+    x.fillStyle = 'rgba(0,0,0,0.34)'; x.fillRect(0, i, 512, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(4, 3);
+  return t;
+}
+
+// Phong instead of Standard: Blinn-Phong costs roughly a third of what the PBR
+// path does per light per pixel, and at this scale the look is near identical.
+const mat = {
+  floor:   new THREE.MeshPhongMaterial({ map: plankTexture(), color: 0xb08a63, specular: 0x2a2018, shininess: 26 }),
+  ceiling: new THREE.MeshPhongMaterial({ color: 0x140f0a, specular: 0x050505, shininess: 3 }),
+  shell:   new THREE.MeshPhongMaterial({ color: 0x33200f, specular: 0x1d1610, shininess: 12 }),
+  deck:    new THREE.MeshPhongMaterial({ color: 0x5a3418, specular: 0x3d332a, shininess: 55 }),
+  chrome:  new THREE.MeshPhongMaterial({ color: 0xc9973f, specular: 0xffe2a8, shininess: 120, reflectivity: 1 }),
+  seat:    new THREE.MeshPhongMaterial({ color: 0x6e2024, specular: 0x2e1a1c, shininess: 20 }),
+  dark:    new THREE.MeshPhongMaterial({ color: 0x1b1209, specular: 0x191512, shininess: 16 }),
+  // a touch of emissive lifts the door out of the gloom without costing a light
+  door:    new THREE.MeshPhongMaterial({ color: 0x8c2c27, specular: 0x4a3a34, shininess: 45,
+                                         emissive: 0x2a0f0d }),
+  steel:   new THREE.MeshPhongMaterial({ color: 0x9aa2ab, specular: 0xdfe6ee, shininess: 90,
+                                         emissive: 0x161a1e }),
+};
+const glow  = new THREE.MeshBasicMaterial({ color: RED });
+const glowV = new THREE.MeshBasicMaterial({ color: BLUE });
+const glowM = new THREE.MeshBasicMaterial({ color: WHITE });
+
+const BOTTLE_COLORS = ['#e8a14a', '#7fbf6a', '#d4483f', '#5f9fe0', '#e6d8a8', '#b06cff'];
+
+function box(w, h, d, m, x, y, z, parent) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  mesh.position.set(x, y, z);
+  (parent || scene).add(mesh);
+  return mesh;
+}
+function cyl(rt, rb, h, m, x, y, z, seg, parent) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 16), m);
+  mesh.position.set(x, y, z);
+  (parent || scene).add(mesh);
+  return mesh;
+}
+// unlit accent strip — no shadow work, reads as an emitter
+function strip(w, h, d, m, x, y, z, parent) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  mesh.position.set(x, y, z);
+  (parent || scene).add(mesh);
+  return mesh;
+}
+
+// ---------------------------------------------------------------- shell
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), mat.floor);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), mat.ceiling);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.y = H;
+scene.add(ceil);
+
+function wall(w, x, z, ry) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, H),
+    new THREE.MeshBasicMaterial({ map: rainTex(w) })
+  );
+  m.position.set(x, H / 2, z);
+  m.rotation.y = ry;
+  scene.add(m);
+
+  // old-school wainscot: wood panelling, a brass cap rail, and a low LED line
+  const panel = box(w, 1.05, 0.09, mat.shell, 0, 0.525, 0);
+  panel.position.set(x, 0.525, z); panel.rotation.y = ry; panel.translateZ(0.045);
+  const cap = box(w, 0.07, 0.16, mat.chrome, 0, 1.09, 0);
+  cap.position.set(x, 1.09, z); cap.rotation.y = ry; cap.translateZ(0.06);
+  const s = strip(w, 0.04, 0.03, glow, 0, 0.1, 0);
+  s.position.set(x, 0.1, z); s.rotation.y = ry; s.translateZ(0.1);
+}
+wall(W, 0, -D / 2, 0);              // back (behind the bar)
+wall(W, 0,  D / 2, Math.PI);        // front (entrance)
+wall(D, -W / 2, 0,  Math.PI / 2);   // left
+wall(D,  W / 2, 0, -Math.PI / 2);   // right
+
+// walls hold a still frame of the rain; press R to let it run
+RAIN.freeze();
+rainTextures.forEach(t => { t.needsUpdate = true; });
+
+// ceiling ribs with a light channel down the middle of each
+for (let i = -2; i <= 2; i++) {
+  box(W, 0.22, 0.3, mat.shell, 0, H - 0.12, i * 2.4);
+  strip(W, 0.02, 0.06, i % 2 ? glowV : glow, 0, H - 0.235, i * 2.4);
+}
+
+// ---------------------------------------------------------------- the bar
+const BAR_Z = -3.4, BAR_LEN = 10, BAR_W = 0.9, BAR_H = 1.12;
+const barX = -1.5;
+box(BAR_LEN, BAR_H, BAR_W, mat.shell, barX, BAR_H / 2, BAR_Z);
+box(BAR_LEN + 0.4, 0.1, BAR_W + 0.35, mat.deck, barX, BAR_H + 0.05, BAR_Z);
+const BAR_FRONT = BAR_Z + BAR_W / 2;
+strip(BAR_LEN + 0.4, 0.025, 0.02, glow, barX, BAR_H - 0.03, BAR_FRONT + 0.18);  // counter edge
+strip(BAR_LEN, 0.03, 0.02, glowV, barX, 0.16, BAR_FRONT + 0.01);                // kick underglow
+cyl(0.04, 0.04, BAR_LEN, mat.chrome, barX, 0.34, BAR_FRONT + 0.3, 12).rotation.z = Math.PI / 2;
+
+// back bar: lit shelves, bottles that glow from inside
+const BACK_Z = -D / 2 + 0.35;
+box(BAR_LEN, 2.4, 0.5, mat.shell, barX, 1.2, BACK_Z);
+const BOTTLES_PER_SHELF = 22;
+const bottles = new THREE.InstancedMesh(
+  new THREE.CylinderGeometry(0.035, 0.05, 0.26, 8),
+  new THREE.MeshBasicMaterial(),                 // self-lit glass, no lighting cost
+  BOTTLES_PER_SHELF * 3
+);
+{
+  const m = new THREE.Matrix4(), col = new THREE.Color();
+  let n = 0;
+  for (let sh = 0; sh < 3; sh++) {
+    const y = 0.9 + sh * 0.55;
+    box(BAR_LEN - 0.4, 0.06, 0.42, mat.deck, barX, y, BACK_Z + 0.06);
+    strip(BAR_LEN - 0.4, 0.015, 0.015, glow, barX, y - 0.04, BACK_Z + 0.27);
+    for (let b = 0; b < BOTTLES_PER_SHELF; b++, n++) {
+      const x = barX - BAR_LEN / 2 + 0.5 + Math.random() * (BAR_LEN - 1);
+      m.makeTranslation(x, y + 0.16, BACK_Z + 0.06);
+      bottles.setMatrixAt(n, m);
+      col.set(BOTTLE_COLORS[Math.floor(Math.random() * BOTTLE_COLORS.length)]).multiplyScalar(0.8);
+      bottles.setColorAt(n, col);
+    }
+  }
+  bottles.instanceMatrix.needsUpdate = true;
+  scene.add(bottles);
+}
+
+// stools
+for (let i = 0; i < 6; i++) {
+  const x = barX - 4 + i * 1.6;
+  const z = BAR_Z + 1.12;          // pulled in so a seated arm reaches the bar top
+  cyl(0.05, 0.06, 0.72, mat.dark, x, 0.36, z, 10);
+  cyl(0.24, 0.24, 0.09, mat.seat, x, 0.76, z, 16);
+  cyl(0.245, 0.245, 0.012, i % 2 ? glowM : glow, x, 0.705, z, 16);
+  cyl(0.22, 0.22, 0.03, mat.chrome, x, 0.25, z, 12);
+}
+
+// ---------------------------------------------------------------- beer taps
+const BEERS = [
+  ['STADIUM LAGER', '#c9932c'], ['NORTHGATE RED', '#b5372c'], ['HARBOR PALE', '#d6b45c'],
+  ['MIDNIGHT STOUT', '#2a1a12'], ['RAIL KING IPA', '#4f8f3a'], ['BLUE LINE PILS', '#2b6cff'],
+  ['OAKMONT AMBER', '#9a5324'], ['CIDER HOUSE', '#c96a24'], ['GRAND FORKS WHEAT', '#c8a86a'],
+  ['STEEL VALLEY DARK', '#3b2a44']
+];
+const tapDark = new THREE.MeshPhongMaterial({ color: 0x14100c, specular: 0x1a1a1a, shininess: 20 });
+
+const BADGES = BEERS.map(([name, color]) => {
+  const c = document.createElement('canvas');
+  c.width = 160; c.height = 224;
+  const x = c.getContext('2d');
+  x.fillStyle = color; x.fillRect(0, 0, 160, 224);
+  const sh = x.createLinearGradient(0, 0, 160, 0);
+  sh.addColorStop(0, 'rgba(255,255,255,0.22)');
+  sh.addColorStop(0.45, 'rgba(255,255,255,0)');
+  sh.addColorStop(1, 'rgba(0,0,0,0.3)');
+  x.fillStyle = sh; x.fillRect(0, 0, 160, 224);
+  x.strokeStyle = 'rgba(255,255,255,0.8)'; x.lineWidth = 5;
+  x.strokeRect(11, 11, 138, 202);
+  x.fillStyle = '#fff'; x.textAlign = 'center';
+  const words = name.split(' ');
+  const size = words.length > 2 ? 24 : 27;
+  x.font = '800 ' + size + 'px Arial, Helvetica, sans-serif';
+  const top = 112 - (words.length - 1) * 17;
+  words.forEach((w, i) => x.fillText(w, 80, top + i * 34));
+  const tex = new THREE.CanvasTexture(c);
+  return new THREE.MeshPhongMaterial({ map: tex, specular: 0x333333, shininess: 30 });
+});
+
+// Every tap is the same five brass parts in the same arrangement, so they are
+// drawn as five instanced meshes rather than 120 separate ones. Only the
+// badges stay individual, since each carries its own label texture.
+const TAPS = [];                                   // {x, y, z, ry, badge}
+function beerTap(x, y, z, ry, badge) { TAPS.push({ x, y, z, ry, badge }); }
+
+function buildTaps() {
+  const parts = [
+    { geo: new THREE.CylinderGeometry(0.055, 0.058, 0.03,  14), p: [0, 0.015, 0],     rx: 0 },
+    { geo: new THREE.CylinderGeometry(0.040, 0.046, 0.40,  14), p: [0, 0.20,  0],     rx: 0 },
+    { geo: new THREE.CylinderGeometry(0.021, 0.021, 0.12,  10), p: [0, 0.375, 0.06],  rx: Math.PI / 2 },
+    { geo: new THREE.CylinderGeometry(0.019, 0.019, 0.085, 10), p: [0, 0.325, 0.115], rx: 0 },
+    { geo: new THREE.CylinderGeometry(0.011, 0.011, 0.14,   8), p: [0, 0.47, -0.025], rx: 0 }
+  ];
+  const world = new THREE.Matrix4(), local = new THREE.Matrix4(), out = new THREE.Matrix4();
+  const q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1);
+  const pos = new THREE.Vector3();
+
+  parts.forEach(part => {
+    const im = new THREE.InstancedMesh(part.geo, mat.chrome, TAPS.length);
+    TAPS.forEach((t, i) => {
+      world.compose(pos.set(t.x, t.y, t.z), q.setFromEuler(e.set(0, t.ry, 0)), one);
+      local.compose(new THREE.Vector3(part.p[0], part.p[1], part.p[2]),
+                    new THREE.Quaternion().setFromEuler(new THREE.Euler(part.rx, 0, 0)), one);
+      out.multiplyMatrices(world, local);
+      im.setMatrixAt(i, out);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    scene.add(im);
+  });
+
+  const badgeGeo = new THREE.BoxGeometry(0.10, 0.165, 0.024);
+  TAPS.forEach(t => {
+    const b = new THREE.Mesh(badgeGeo, [tapDark, tapDark, tapDark, tapDark, t.badge, t.badge]);
+    b.position.set(t.x, t.y + 0.615, t.z);
+    b.translateZ(-0.035);
+    b.rotation.set(-0.16, t.ry, 0);
+    scene.add(b);
+  });
+}
+
+// back counter behind the bartender, carrying the long tap wall
+const TAPWALL_Z = -5.15, TAPWALL_X = barX - 0.1, TAPWALL_W = 9.8;
+box(TAPWALL_W, 1.12, 0.32, mat.shell,  TAPWALL_X, 0.56, TAPWALL_Z);
+box(TAPWALL_W + 0.1, 0.06, 0.38, mat.chrome, TAPWALL_X, 1.15, TAPWALL_Z);
+strip(TAPWALL_W, 0.025, 0.02, glowV, TAPWALL_X, 0.18, TAPWALL_Z + 0.17);
+box(TAPWALL_W - 0.4, 0.02, 0.2, mat.chrome, TAPWALL_X, 1.185, TAPWALL_Z + 0.24);  // drip tray
+
+const TAP_N = 21, TAP_GAP = (TAPWALL_W - 0.8) / (TAP_N - 1);
+for (let i = 0; i < TAP_N; i++) {
+  beerTap(TAPWALL_X - (TAPWALL_W - 0.8) / 2 + i * TAP_GAP, 1.18, TAPWALL_Z,
+          0, BADGES[i % BADGES.length]);
+}
+
+// three on the counter itself, right in front of the bartender
+const ISLAND_X = -0.4;
+box(1.15, 0.02, 0.26, mat.chrome, ISLAND_X, 1.232, BAR_Z - 0.06);
+[-0.34, 0, 0.34].forEach((dx, i) => {
+  beerTap(ISLAND_X + dx, 1.222, BAR_Z - 0.3, 0, BADGES[(i * 3 + 1) % BADGES.length]);
+});
+buildTaps();
+
+// ---------------------------------------------------------------- tables
+function table(x, z) {
+  const g = new THREE.Group();
+  cyl(0.6, 0.6, 0.07, mat.deck, 0, 0.74, 0, 24, g);
+  cyl(0.62, 0.62, 0.014, glow, 0, 0.698, 0, 24, g);
+  cyl(0.07, 0.07, 0.74, mat.dark, 0, 0.37, 0, 12, g);
+  cyl(0.35, 0.35, 0.04, mat.dark, 0, 0.03, 0, 16, g);
+  cyl(0.36, 0.36, 0.012, glowV, 0, 0.056, 0, 16, g);
+  for (let a = 0; a < 2; a++) {
+    const ang = a * Math.PI + Math.PI / 5;
+    const c = new THREE.Group();
+    cyl(0.03, 0.03, 0.45, mat.dark, -0.18, 0.22, -0.18, 8, c);
+    cyl(0.03, 0.03, 0.45, mat.dark,  0.18, 0.22, -0.18, 8, c);
+    cyl(0.03, 0.03, 0.45, mat.dark, -0.18, 0.22,  0.18, 8, c);
+    cyl(0.03, 0.03, 0.45, mat.dark,  0.18, 0.22,  0.18, 8, c);
+    box(0.46, 0.06, 0.46, mat.seat, 0, 0.47, 0, c);
+    box(0.46, 0.55, 0.06, mat.shell, 0, 0.75, -0.2, c);
+    strip(0.42, 0.02, 0.02, glowM, 0, 1.01, -0.2, c);
+    c.position.set(Math.cos(ang), 0, Math.sin(ang));
+    c.rotation.y = -ang - Math.PI / 2;   // seat back outward, facing the table
+    g.add(c);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+}
+const TABLES = [[-3.6, 1.8], [3.6, 1.8]];
+TABLES.forEach(([x, z]) => table(x, z));
+
+// ---------------------------------------------------------------- booths
+const BOOTH_W = 1.9, BOOTH_D = 1.7;   // width along the wall, depth out from it
+
+const BOOTH_GROUPS = [];
+// Booth 3 lights the whole right wall, booth 6 the left and the doorway.
+// Every point light is paid for on every lit pixel, so there are only two.
+const BOOTH_LAMPS = touch ? [3] : [3, 6];
+function booth(x, z, ry, i, sides) {
+  const g = new THREE.Group();
+  const accent = i % 2 ? glowV : glow;
+  for (const side of (sides || [-1, 1])) {
+    box(0.55, 0.42, 1.45, mat.shell, side * 0.66, 0.21, -0.05, g);  // bench base
+    box(0.58, 0.10, 1.45, mat.seat,  side * 0.66, 0.47, -0.05, g);  // cushion
+    box(0.12, 1.35, 1.60, mat.shell, side * 0.94, 0.68,  0.00, g);  // high back / divider
+    box(0.06, 0.85, 1.50, mat.seat,  side * 0.85, 0.82,  0.00, g);  // padded facing
+    strip(0.14, 0.02, 1.6, accent, side * 0.94, 1.365, 0, g);       // lit cap rail
+    strip(0.02, 0.02, 1.45, accent, side * 0.4, 0.53, -0.05, g);    // seat edge line
+  }
+  box(1.05, 0.06, 0.80, mat.deck, 0, 0.74, -0.1, g);
+  strip(1.09, 0.014, 0.84, accent, 0, 0.702, -0.1, g);
+  cyl(0.06, 0.06, 0.74, mat.dark, 0, 0.37, -0.1, 10, g);
+  cyl(0.30, 0.30, 0.04, mat.dark, 0, 0.03, -0.1, 14, g);
+  // The corner booth is left dark on purpose - it is Strider's.
+  if (BOOTH_LAMPS.indexOf(i) >= 0) {
+    const lamp = new THREE.PointLight(0xffc48a, 2.1, 7.5, 2);
+    lamp.position.set(0, 1.62, -0.1);
+    g.add(lamp);
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = ry;   // local +z is the open side, so the booth always faces the room
+  scene.add(g);
+  BOOTH_GROUPS[i] = g;
+  return g;
+}
+
+const BOOTHS = [];
+// left wall: the bay nearest the bar is left open for the jukebox
+[1.1, 3.3].forEach(z => BOOTHS.push([-W / 2 + BOOTH_D / 2, z,  Math.PI / 2]));
+[-0.4, 1.8, 4.0].forEach(z => BOOTHS.push([W / 2 - BOOTH_D / 2, z, -Math.PI / 2]));
+// back-right corner: pushed into the corner, one bench only, against the wall
+const CORNER = [W / 2 - BOOTH_D / 2, -D / 2 + BOOTH_W / 2 + 0.09, -Math.PI / 2, [-1]];
+BOOTHS.push(CORNER);
+// entry wall: only the far corners, so the doorway stays clear
+[-4.6, 4.6].forEach(x => BOOTHS.push([x, D / 2 - BOOTH_D / 2, Math.PI]));
+BOOTHS.forEach(([x, z, ry, sides], i) => booth(x, z, ry, i, sides));
+
+/* ----------------------------------------------------------------------
+   PLAYLIST
+   Tracks come from files the person picks or drops; they are read straight
+   off disk as object URLs and never uploaded anywhere.
+   ---------------------------------------------------------------------- */
+const PLAYER = (() => {
+  const el = new Audio();
+  el.crossOrigin = 'anonymous';   // required, or remote audio taints the audio graph
+  el.preload = 'auto';
+  const sound = new THREE.PositionalAudio(listener);
+  const tracks = [];
+  let idx = -1, wired = false, vol = 0.45;
+
+  function wire() {
+    if (wired) return;
+    sound.setMediaElementSource(el);       // streams the file through the panner
+    sound.setDistanceModel('inverse');
+    sound.setRefDistance(2.4);             // full volume within ~2.4m of the cabinet
+    sound.setRolloffFactor(0.8);           // still audible across the room
+    sound.setMaxDistance(30);
+    sound.setVolume(vol);
+    wired = true;
+  }
+  function resume() {
+    if (listener.context.state === 'suspended') listener.context.resume();
+  }
+  function play(i) {
+    if (!tracks.length) return;
+    idx = (i % tracks.length + tracks.length) % tracks.length;
+    wire(); resume();
+    el.src = tracks[idx].url;
+    el.play().catch(() => {});
+    renderList();
+  }
+  function toggle() {
+    if (!tracks.length) return;
+    if (idx < 0) return play(0);
+    wire(); resume();
+    el.paused ? el.play().catch(() => {}) : el.pause();
+    renderList();
+  }
+  el.addEventListener('ended', () => play(idx + 1));
+  el.addEventListener('play',  renderList);
+  el.addEventListener('pause', renderList);
+
+  let emptyMsg = 'loading playlist\u2026';
+  const listEl = () => document.getElementById('jb-list');
+  function renderList() {
+    const ul = listEl(); if (!ul) return;
+    document.getElementById('jb-play').innerHTML = el.paused ? '&#9654;' : '&#10074;&#10074;';
+    if (!tracks.length) { ul.innerHTML = '<li class="jb-empty">' + emptyMsg + '</li>'; return; }
+    ul.innerHTML = '';
+    tracks.forEach((tr, i) => {
+      const li = document.createElement('li');
+      li.textContent = (i + 1) + '. ' + tr.name;
+      if (i === idx) li.className = 'on';
+      li.addEventListener('click', () => play(i));
+      ul.appendChild(li);
+    });
+  }
+  let fails = 0;
+  el.addEventListener('playing', () => { fails = 0; });
+  el.addEventListener('error', () => {
+    if (idx < 0) return;
+    const li = document.querySelectorAll('#jb-list li')[idx];
+    if (li) li.classList.add('bad');
+    if (++fails < tracks.length) play(idx + 1);
+  });
+
+  function addRemote(list, autoplay) {
+    const first = tracks.length;
+    list.forEach(t => tracks.push(t));
+    renderList();
+    if (autoplay && idx < 0 && tracks.length > first) {
+      idx = first;                       // queued; starts on the first click
+      renderList();
+    }
+  }
+
+  return {
+    sound, addRemote, play, toggle,
+    setStatus(m) { emptyMsg = m; renderList(); },
+    isIdle: () => idx < 0 || el.paused,
+    count: () => tracks.length,
+    prev: () => play(idx - 1),
+    next: () => play(idx + 1),
+    setVolume(v) { vol = v; if (wired) sound.setVolume(v); },
+    names: () => tracks.map(t => t.name),
+    index: () => idx,
+    playing: () => !el.paused && idx >= 0,
+    render: renderList
+  };
+})();
+
+/* ----------------------------------------------------------------------
+   HOLOGRAPHIC JUKEBOX
+   Classic arched cabinet, with the selection display projected above it.
+   ---------------------------------------------------------------------- */
+const JUKE_X = -W / 2 + 0.42, JUKE_Z = -1.1;
+const JUKEBOX = (() => {
+  const g = new THREE.Group();
+
+  // cabinet
+  box(1.30, 1.15, 0.62, mat.shell,  0, 0.575, 0, g);
+  box(1.36, 0.07, 0.68, mat.chrome, 0, 1.185, 0, g);
+  box(1.10, 0.10, 0.04, mat.chrome, 0, 0.16,  0.31, g);
+
+  // arched crown: a half cylinder laid on its side
+  const crown = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.65, 0.65, 0.62, 26, 1, false, -Math.PI / 2, Math.PI),
+    mat.shell
+  );
+  crown.rotation.x = -Math.PI / 2;
+  crown.position.y = 1.22;
+  g.add(crown);
+
+  // neon tubes tracing both edges of the arch
+  const tube = new THREE.TorusGeometry(0.65, 0.022, 8, 30, Math.PI);
+  [[-0.31, glowV], [0.31, glow]].forEach(([z, m]) => {
+    const t = new THREE.Mesh(tube, m);
+    t.position.set(0, 1.22, z);
+    g.add(t);
+  });
+
+  // front selection display
+  const face = document.createElement('canvas');
+  face.width = 512; face.height = 384;
+  const fctx = face.getContext('2d');
+  const faceTex = new THREE.CanvasTexture(face);
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.06, 0.8),
+    new THREE.MeshBasicMaterial({ map: faceTex })
+  );
+  panel.position.set(0, 0.74, 0.315);
+  g.add(panel);
+
+  // projector beam rising off the crown
+  const beam = new THREE.Mesh(
+    new THREE.ConeGeometry(0.62, 1.02, 24, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x7fd4ff, transparent: true, opacity: 0.07,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    })
+  );
+  beam.rotation.x = Math.PI;          // apex down, spreading upward
+  beam.position.set(0, 1.80, 0.05);
+  g.add(beam);
+
+  // the hologram itself
+  const holo = document.createElement('canvas');
+  holo.width = 512; holo.height = 256;
+  const hctx = holo.getContext('2d');
+  const holoTex = new THREE.CanvasTexture(holo);
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.16, 0.58),
+    new THREE.MeshBasicMaterial({
+      map: holoTex, transparent: true, opacity: 0.92,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    })
+  );
+  plate.position.set(0, 1.95, 0.18);
+  g.add(plate);
+
+  // spinning record ring under the plate
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.31, 0.009, 6, 44),
+    new THREE.MeshBasicMaterial({
+      color: 0x9fe0ff, transparent: true, opacity: 0.75,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    })
+  );
+  ring.position.set(0, 1.95, 0.17);
+  g.add(ring);
+  const ring2 = ring.clone();
+  ring2.scale.setScalar(0.62);
+  g.add(ring2);
+
+  const lamp = new THREE.PointLight(0x8fc8ff, 1.1, 4.2, 2);
+  lamp.position.set(0, 1.5, 0.35);
+  g.add(lamp);
+
+  PLAYER.sound.position.set(0, 1.0, 0.3);   // the music comes out of the cabinet
+  g.add(PLAYER.sound);
+
+  g.position.set(JUKE_X, 0, JUKE_Z);
+  g.rotation.y = Math.PI / 2;         // front faces into the room
+  scene.add(g);
+
+  const TRACKS = [
+    'A1  BLUE RIDGE LINE', 'A2  SATURDAY STATIC', 'A3  EIGHT BALL BLUES',
+    'B1  MARQUEE LIGHTS', 'B2  LONG WAY HOME', 'B3  THIRD AND LONG'
+  ];
+
+  function drawFace(t) {
+    const c = fctx, w = face.width, h = face.height;
+    c.fillStyle = '#0d0a06'; c.fillRect(0, 0, w, h);
+    const grd = c.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, 'rgba(255,59,59,0.35)');
+    grd.addColorStop(0.5, 'rgba(43,108,255,0.22)');
+    grd.addColorStop(1, 'rgba(168,85,247,0.3)');
+    c.fillStyle = grd; c.fillRect(0, 0, w, 58);
+    c.fillStyle = '#ffe6b0'; c.font = '800 30px "Arial Black", Impact, sans-serif';
+    c.textAlign = 'center'; c.fillText('JUKEBOX', w / 2, 40);
+    c.textAlign = 'left';
+    const real = PLAYER.names();
+    const list = real.length ? real : TRACKS;
+    const sel = real.length
+      ? Math.max(0, PLAYER.index())
+      : Math.floor(t * 0.5) % TRACKS.length;
+    const top = Math.max(0, Math.min(sel - 2, list.length - 6));
+    list.slice(top, top + 6).forEach((name, k) => {
+      const i = top + k, y = 92 + k * 44;
+      if (i === sel) {
+        c.fillStyle = 'rgba(255,180,71,0.22)'; c.fillRect(22, y - 26, w - 44, 36);
+        c.fillStyle = '#ffb347';
+      } else c.fillStyle = '#9d8a6d';
+      c.font = '700 23px Arial, Helvetica, sans-serif';
+      const label = real.length ? String(i + 1).padStart(2, '0') + '  ' + name : name;
+      c.fillText(label.length > 26 ? label.slice(0, 25) + '\u2026' : label, 34, y);
+    });
+    if (!real.length) {
+      c.fillStyle = '#ff6b6b'; c.textAlign = 'center';
+      c.font = '700 19px Arial, Helvetica, sans-serif';
+      c.fillText('OUT OF ORDER', w / 2, h - 18);
+      c.textAlign = 'left';
+    }
+    faceTex.needsUpdate = true;
+  }
+
+  function drawHolo(t) {
+    const c = hctx, w = holo.width, h = holo.height;
+    c.fillStyle = '#000208'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#7fe4ff'; c.font = '700 20px Arial, Helvetica, sans-serif';
+    c.fillText('NOW PLAYING', 22, 36);
+    const real = PLAYER.names();
+    const title = real.length
+      ? (real[Math.max(0, PLAYER.index())] || real[0])
+      : TRACKS[Math.floor(t * 0.5) % TRACKS.length].slice(4);
+    c.fillStyle = '#eaf8ff'; c.font = '800 30px "Arial Black", Impact, sans-serif';
+    c.fillText(title.length > 20 ? title.slice(0, 19) + '\u2026' : title, 22, 78);
+    const live = PLAYER.playing() || !real.length;
+    for (let i = 0; i < 30; i++) {
+      const v = live
+        ? (Math.sin(t * 6 + i * 0.55) * 0.5 + Math.sin(t * 2.7 + i * 0.2) * 0.5 + 1) * 0.5
+        : 0.04;
+      const bh = 10 + v * 110;
+      c.fillStyle = i % 5 === 0 ? 'rgba(255,79,163,0.9)' : 'rgba(110,200,255,0.85)';
+      c.fillRect(22 + i * 16, h - 26 - bh, 10, bh);
+    }
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    for (let y = 0; y < h; y += 5) c.fillRect(0, y, w, 2);   // scanlines
+    holoTex.needsUpdate = true;
+  }
+
+  let acc = 0;
+  return {
+    group: g,
+    update(elapsed, dt) {
+      ring.rotation.z -= dt * 1.6;
+      ring2.rotation.z += dt * 2.4;
+      plate.position.y = 1.95 + Math.sin(elapsed * 1.3) * 0.016;
+      plate.material.opacity = 0.86 + Math.sin(elapsed * 9) * 0.06;   // faint flicker
+      acc += dt;
+      if (acc > 1 / 12) { drawFace(elapsed); drawHolo(elapsed); acc = 0; }
+    }
+  };
+})();
+
+// ---------------------------------------------------------------- sign
+function signTexture(text) {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#0b0704'; x.fillRect(0, 0, c.width, c.height);
+  x.shadowColor = '#ff3b3b'; x.shadowBlur = 30;
+  x.strokeStyle = '#ff3b3b'; x.lineWidth = 6;
+  x.strokeRect(18, 18, c.width - 36, c.height - 36);
+  x.shadowColor = '#2b6cff'; x.shadowBlur = 34;
+  x.fillStyle = '#f6faff';
+  x.font = '800 116px "Arial Black", Impact, Haettenschweiler, sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, c.width / 2, c.height / 2 - 10);
+  x.shadowBlur = 12; x.shadowColor = '#ff3b3b';
+  x.fillStyle = '#ffb347';
+  x.font = '700 30px Arial, Helvetica, sans-serif';
+  x.fillText('S P O R T S   B A R', c.width / 2, c.height / 2 + 68);
+  x.shadowBlur = 0;
+  return new THREE.CanvasTexture(c);
+}
+const sign = new THREE.Mesh(
+  new THREE.PlaneGeometry(3.0, 0.66),
+  new THREE.MeshBasicMaterial({ map: signTexture('THE PUB') })
+);
+sign.position.set(0, 3.05, D / 2 - 0.06);   // above the exit door
+sign.rotation.y = Math.PI;
+scene.add(sign);
+
+// ---------------------------------------------------------------- the exit
+const DOOR_Z = D / 2 - 0.07;
+const DOOR = new THREE.Group();                               // grouped so it can be clicked
+scene.add(DOOR);
+box(1.44, 2.36, 0.10, mat.steel, 0, 1.18, DOOR_Z, DOOR);      // steel frame
+box(1.20, 2.20, 0.08, mat.door,  0, 1.10, DOOR_Z - 0.05, DOOR); // painted slab
+box(1.16, 0.26, 0.03, mat.steel, 0, 0.16, DOOR_Z - 0.10, DOOR); // kick plate
+box(0.54, 0.34, 0.02, mat.dark,  0, 1.86, DOOR_Z - 0.10, DOOR); // wired glass light
+strip(0.50, 0.30, 0.01, glowM, 0, 1.86, DOOR_Z - 0.115, DOOR);
+cyl(0.035, 0.035, 1.02, mat.steel, 0, 1.06, DOOR_Z - 0.13, 12, DOOR).rotation.z = Math.PI / 2;
+[-0.44, 0.44].forEach(dx => cyl(0.028, 0.028, 0.10, mat.steel, dx, 1.06, DOOR_Z - 0.09, 8, DOOR)
+  .rotation.x = Math.PI / 2);
+
+// EXIT box over the frame
+const exitSign = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.58, 0.2),
+  new THREE.MeshBasicMaterial({ map: (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 88;
+    const x = c.getContext('2d');
+    x.fillStyle = '#0a0a0a'; x.fillRect(0, 0, 256, 88);
+    x.shadowColor = '#35ff8a'; x.shadowBlur = 22;
+    x.fillStyle = '#c9ffe0';
+    x.font = '800 54px Arial, Helvetica, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('EXIT', 128, 48);
+    return new THREE.CanvasTexture(c);
+  })() })
+);
+exitSign.position.set(0, 2.47, D / 2 - 0.06);
+exitSign.rotation.y = Math.PI;
+scene.add(exitSign);
+
+// glowing beer emoji over the jukebox, no frame - just the sign itself
+const beerSign = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.95, 0.95),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 448;
+    const x = c.getContext('2d');
+    // no background fill, so only the emoji and its glow show up
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '260px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    [[52, '#ffb347'], [30, '#ffd98a'], [14, '#fff3d0']].forEach(([blur, col]) => {
+      x.shadowColor = col; x.shadowBlur = blur;
+      x.fillText('\ud83c\udf7b', 224, 232);
+    });
+    x.shadowBlur = 0;
+    return new THREE.CanvasTexture(c);
+  })() })
+);
+beerSign.position.set(-W / 2 + 0.07, 2.65, JUKE_Z);
+beerSign.rotation.y = Math.PI / 2;            // facing into the room
+scene.add(beerSign);
+
+// ---------------------------------------------------------------- screens
+const tvMat   = new THREE.MeshPhongMaterial({ color: 0x0b0b0f, specular: 0x4a4a55, shininess: 70 });
+const glowMat = new THREE.MeshBasicMaterial({ color: 0x3f9dd8 });
+
+function makeFeed(kind) {
+  const c = document.createElement('canvas');
+  c.width = 384; c.height = 216;                 // 44% of the pixels to upload
+  return { kind, c, ctx: c.getContext('2d'), tex: new THREE.CanvasTexture(c) };
+}
+const feeds = [makeFeed('football'), makeFeed('basketball'), makeFeed('baseball'),
+               makeFeed('ticker'), makeFeed('drafts')];
+
+const TICKER = [
+  ['RIVERTON', 21, 'MARSHALL', 17, 'Q3'],
+  ['HARBOR CITY', 88, 'CENTRAL', 84, 'Q4'],
+  ['PIONEERS', 3, 'RAIL KINGS', 2, 'T7'],
+  ['GRAND FORKS', 14, 'BAY UNION', 31, 'FINAL'],
+  ['LAKESIDE', 45, 'OAKMONT', 45, 'OT'],
+  ['STEEL VALLEY', 2, 'NORTHPORT', 1, 'P3']
+];
+const TAP_LIST = [
+  ['DOMESTIC DRAFT', '4.00'], ['STADIUM LAGER', '5.00'], ['AMBER ALE', '5.50'],
+  ['PITCHER / 60 OZ', '18.00'], ['WINGS, 10 PC', '13.00'], ['LOADED NACHOS', '11.00'],
+  ['BASKET OF FRIES', '6.50']
+];
+
+// shared broadcast score bug
+function bug(x, cw, top, away, home, status) {
+  x.fillStyle = 'rgba(8,8,12,0.94)'; x.fillRect(0, top, cw, 58);
+  x.fillStyle = '#ff3b3b'; x.fillRect(0, top, 8, 29);
+  x.fillStyle = '#2b6cff'; x.fillRect(0, top + 29, 8, 29);
+  x.font = '700 20px Arial, Helvetica, sans-serif';
+  x.fillStyle = '#e9edf5';
+  x.fillText(away[0], 22, top + 22);
+  x.fillText(home[0], 22, top + 51);
+  x.textAlign = 'right';
+  x.fillStyle = away[1] >= home[1] ? '#ffd166' : '#8f98a8';
+  x.fillText(String(away[1]), cw - 96, top + 22);
+  x.fillStyle = home[1] >= away[1] ? '#ffd166' : '#8f98a8';
+  x.fillText(String(home[1]), cw - 96, top + 51);
+  x.textAlign = 'left';
+  x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(cw - 86, top + 8, 78, 42);
+  x.fillStyle = '#e9edf5'; x.font = '700 17px Arial, Helvetica, sans-serif';
+  x.textAlign = 'center';
+  x.fillText(status[0], cw - 47, top + 26);
+  x.fillStyle = '#9fb2c8'; x.font = '600 15px Arial, Helvetica, sans-serif';
+  x.fillText(status[1], cw - 47, top + 46);
+  x.textAlign = 'left';
+}
+function liveDot(x, cw, t) {
+  if (Math.sin(t * 3) <= 0) return;
+  x.fillStyle = '#ff3b3b'; x.beginPath(); x.arc(26, 24, 7, 0, 7); x.fill();
+  x.fillStyle = '#ffdcdc'; x.font = '700 15px Arial, Helvetica, sans-serif';
+  x.fillText('LIVE', 40, 29);
+}
+const gameClock = (t, len) => {
+  const left = len - Math.floor(t * 3) % len;
+  return Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+};
+
+function paint(f, t) {
+  const x = f.ctx, cw = f.c.width, ch = f.c.height;
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.textAlign = 'left';
+
+  if (f.kind === 'football') {
+    x.fillStyle = '#17441f'; x.fillRect(0, 0, cw, ch);
+    x.fillStyle = 'rgba(0,0,0,0.16)';
+    for (let i = 0; i < cw; i += 64) x.fillRect(i, 0, 32, ch);
+    x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineWidth = 2;
+    for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo(i * cw / 10, 0); x.lineTo(i * cw / 10, ch); x.stroke(); }
+    x.fillStyle = 'rgba(255,59,59,0.5)'; x.fillRect(0, 0, 42, ch);
+    x.fillStyle = 'rgba(43,108,255,0.5)'; x.fillRect(cw - 42, 0, 42, ch);
+    // line of scrimmage and first-down marker
+    const los = 120 + (Math.floor(t * 0.6) % 8) * 26;
+    x.strokeStyle = '#3b6fff'; x.lineWidth = 4;
+    x.beginPath(); x.moveTo(los, 0); x.lineTo(los, ch); x.stroke();
+    x.strokeStyle = '#ffd166';
+    x.beginPath(); x.moveTo(los + 58, 0); x.lineTo(los + 58, ch); x.stroke();
+    bug(x, cw, 0, ['RIVERTON', 21], ['MARSHALL', 17], ['3RD', gameClock(t, 900)]);
+    x.fillStyle = 'rgba(8,8,12,0.9)'; x.fillRect(0, ch - 40, cw, 40);
+    x.fillStyle = '#ffd166'; x.font = '700 19px Arial, Helvetica, sans-serif';
+    x.fillText('2ND & 6', 20, ch - 14);
+    x.fillStyle = '#cfd8e6'; x.font = '600 17px Arial, Helvetica, sans-serif';
+    x.fillText('BALL ON RIV 34', 124, ch - 14);
+    x.textAlign = 'right';
+    x.fillStyle = '#8f98a8'; x.fillText('TO: 2 / 3', cw - 20, ch - 14);
+    x.textAlign = 'left';
+    liveDot(x, cw, t);
+
+  } else if (f.kind === 'basketball') {
+    x.fillStyle = '#8a5a2b'; x.fillRect(0, 0, cw, ch);
+    x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, 0, cw, ch);
+    x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = 3;
+    x.strokeRect(30, 70, cw - 60, ch - 100);
+    x.beginPath(); x.arc(cw / 2, ch / 2 + 10, 46, 0, 7); x.stroke();
+    x.beginPath(); x.moveTo(cw / 2, 70); x.lineTo(cw / 2, ch - 30); x.stroke();
+    x.beginPath(); x.arc(30, ch / 2 + 10, 84, -1.2, 1.2); x.stroke();
+    x.beginPath(); x.arc(cw - 30, ch / 2 + 10, 84, Math.PI - 1.2, Math.PI + 1.2); x.stroke();
+    bug(x, cw, 0, ['HARBOR CITY', 88], ['CENTRAL', 84], ['4TH', gameClock(t, 720)]);
+    // shot clock
+    x.fillStyle = 'rgba(8,8,12,0.92)'; x.fillRect(cw - 104, ch - 66, 84, 52);
+    x.fillStyle = '#ff3b3b'; x.font = '700 38px ui-monospace, Menlo, monospace';
+    x.textAlign = 'center';
+    x.fillText(String(24 - Math.floor(t * 2) % 24).padStart(2, '0'), cw - 62, ch - 26);
+    x.textAlign = 'left';
+    x.fillStyle = '#e9edf5'; x.font = '700 16px Arial, Helvetica, sans-serif';
+    x.fillText('BONUS  \u2022  TEAM FOULS 6', 22, ch - 24);
+    liveDot(x, cw, t);
+
+  } else if (f.kind === 'baseball') {
+    x.fillStyle = '#0d2a17'; x.fillRect(0, 0, cw, ch);
+    x.fillStyle = '#5d3a1f';
+    x.beginPath(); x.arc(cw / 2, ch + 40, 190, Math.PI, 0); x.fill();
+    x.fillStyle = '#123a20';
+    x.beginPath(); x.arc(cw / 2, ch + 40, 150, Math.PI, 0); x.fill();
+    bug(x, cw, 0, ['PIONEERS', 3], ['RAIL KINGS', 2], ['TOP 7', 'OUT 1']);
+    // bases diamond
+    const bx = cw - 74, by = ch - 78, r = 13, on = [1, 0, 1];
+    [[0, -26], [26, 0], [0, 26]].forEach((p, i) => {
+      x.save(); x.translate(bx + p[0], by + p[1]); x.rotate(Math.PI / 4);
+      x.fillStyle = on[i] ? '#ffd166' : 'rgba(255,255,255,0.22)';
+      x.fillRect(-r / 1.4, -r / 1.4, r * 1.4, r * 1.4);
+      x.restore();
+    });
+    // count
+    const b = Math.floor(t) % 4, s = Math.floor(t * 0.7) % 3;
+    x.fillStyle = '#e9edf5'; x.font = '700 17px Arial, Helvetica, sans-serif';
+    x.fillText('B', 24, ch - 74); x.fillText('S', 24, ch - 46); x.fillText('O', 24, ch - 18);
+    for (let i = 0; i < 3; i++) {
+      const dot = (yy, active, col) => {
+        x.beginPath(); x.arc(56 + i * 26, yy, 8, 0, 7);
+        x.fillStyle = active ? col : 'rgba(255,255,255,0.18)'; x.fill();
+      };
+      dot(ch - 80, i < b, '#35d07a');
+      dot(ch - 52, i < s, '#ffd166');
+      dot(ch - 24, i < 1, '#ff3b3b');
+    }
+    liveDot(x, cw, t);
+
+  } else if (f.kind === 'ticker') {
+    x.fillStyle = '#080a10'; x.fillRect(0, 0, cw, ch);
+    x.fillStyle = '#ff3b3b'; x.fillRect(0, 0, cw, 46);
+    x.fillStyle = '#fff'; x.font = '800 22px Arial, Helvetica, sans-serif';
+    x.fillText('SCOREBOARD', 20, 32);
+    x.textAlign = 'right';
+    x.fillStyle = 'rgba(255,255,255,0.8)'; x.font = '700 16px Arial, Helvetica, sans-serif';
+    x.fillText('AROUND THE LEAGUES', cw - 20, 31);
+    x.textAlign = 'left';
+    x.save();
+    x.beginPath(); x.rect(0, 52, cw, ch - 92); x.clip();
+    const span = TICKER.length * 40, off = (t * 26) % span;
+    for (let pass = 0; pass < 2; pass++) {
+      TICKER.forEach((row, i) => {
+        const y = 84 + i * 40 - off + pass * span;
+        x.fillStyle = i % 2 ? 'rgba(255,255,255,0.04)' : 'transparent';
+        x.fillRect(0, y - 24, cw, 36);
+        x.fillStyle = '#dfe6f2'; x.font = '700 17px Arial, Helvetica, sans-serif';
+        x.fillText(row[0], 20, y);
+        x.fillText(row[2], 210, y);
+        x.fillStyle = row[1] > row[3] ? '#ffd166' : '#8f98a8';
+        x.fillText(String(row[1]), 170, y);
+        x.fillStyle = row[3] > row[1] ? '#ffd166' : '#8f98a8';
+        x.fillText(String(row[3]), 388, y);
+        x.fillStyle = row[4] === 'FINAL' ? '#8f98a8' : '#ff5a5a';
+        x.font = '700 14px Arial, Helvetica, sans-serif';
+        x.fillText(row[4], 440, y);
+      });
+    }
+    x.restore();
+    x.fillStyle = '#2b6cff'; x.fillRect(0, ch - 34, cw, 34);
+    x.fillStyle = '#fff'; x.font = '700 16px Arial, Helvetica, sans-serif';
+    const msg = 'HAPPY HOUR TILL 7   \u2022   WINGS 50\u00A2   \u2022   NEXT KICKOFF 8:15   \u2022   ';
+    const w = x.measureText(msg).width;
+    const sx = -((t * 60) % w);
+    x.fillText(msg, sx, ch - 12); x.fillText(msg, sx + w, ch - 12);
+
+  } else {
+    x.fillStyle = '#120c06'; x.fillRect(0, 0, cw, ch);
+    x.fillStyle = '#ffb347'; x.font = '800 24px Arial, Helvetica, sans-serif';
+    x.fillText('ON TAP & KITCHEN', 24, 40);
+    x.fillStyle = '#4a3218'; x.fillRect(24, 52, cw - 48, 3);
+    x.save();
+    x.beginPath(); x.rect(0, 60, cw, ch - 60); x.clip();
+    const span = TAP_LIST.length * 44, off = (t * 22) % span;
+    for (let pass = 0; pass < 2; pass++) {
+      TAP_LIST.forEach((row, i) => {
+        const y = 98 + i * 44 - off + pass * span;
+        x.fillStyle = '#efe2cd'; x.font = '600 21px Arial, Helvetica, sans-serif';
+        x.fillText(row[0], 28, y);
+        x.textAlign = 'right'; x.fillStyle = '#ff6b6b';
+        x.fillText(row[1], cw - 28, y); x.textAlign = 'left';
+      });
+    }
+    x.restore();
+  }
+  f.tex.needsUpdate = true;
+}
+
+// Same trick as the taps: the bezels, wall brackets and accent strips are all
+// the same box or plane at different sizes, so each becomes one instanced draw.
+const SCREENS = [];
+let feedIndex = 0;
+function tv(x, y, z, ry, w, margin) {
+  SCREENS.push({ x, y, z, ry, w, h: w * 0.5625, m: margin === undefined ? 0.05 : margin });
+}
+function buildScreens() {
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  const bezels = new THREE.InstancedMesh(unit, tvMat, SCREENS.length);
+  const arms   = new THREE.InstancedMesh(unit, tvMat, SCREENS.length);
+  const lit    = SCREENS.filter(t => t.m > 0.03);
+  const strips = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 0.012), glowMat, lit.length);
+  const M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  const p = new THREE.Vector3(), sc = new THREE.Vector3();
+  const place = (im, i, t, dz, sx, sy, sz, dy) => {
+    q.setFromEuler(e.set(0, t.ry, 0));
+    p.set(t.x - Math.sin(t.ry) * dz, t.y + (dy || 0), t.z - Math.cos(t.ry) * dz);
+    im.setMatrixAt(i, M.compose(p, q, sc.set(sx, sy, sz)));
+  };
+  let k = 0;
+  SCREENS.forEach((t, i) => {
+    place(bezels, i, t, 0.035, t.w, t.h, 0.07);
+    place(arms,   i, t, 0.100, 0.18, 0.18, 0.09);
+    const scr = new THREE.Mesh(
+      new THREE.PlaneGeometry(t.w - t.m * 2, t.h - t.m * 2),
+      new THREE.MeshBasicMaterial({ map: feeds[feedIndex++ % feeds.length].tex })
+    );
+    scr.position.set(t.x + Math.sin(t.ry) * 0.012, t.y, t.z + Math.cos(t.ry) * 0.012);
+    scr.rotation.y = t.ry;
+    scene.add(scr);
+    if (t.m > 0.03) place(strips, k++, t, -0.012, t.w * 0.22, 1, 1, -t.h / 2 + 0.024);
+  });
+  [bezels, arms, strips].forEach(im => { im.instanceMatrix.needsUpdate = true; scene.add(im); });
+}
+
+// Beams sit at z = -4.8, -2.4, 0, 2.4, 4.8, so the side walls have four 2.1m bays.
+const TV_W = 2.0, TV_Y = 2.70;
+[-3.6, -1.2, 1.2, 3.6].forEach(z => {
+  if (z !== -1.2) tv(-W / 2 + 0.09, TV_Y, z, Math.PI / 2, TV_W);  // -1.2 is over the jukebox
+  tv(W / 2 - 0.09, TV_Y, z, -Math.PI / 2, TV_W);
+});
+[-5.4, -3.0, 3.0, 5.4].forEach(x => tv(x, TV_Y, D / 2 - 0.09, Math.PI, TV_W));
+
+const PANEL = 1.96;
+for (let i = 0; i < 8; i++) {
+  if (i === 7) continue;                   // corner booth below - strider sits under it
+  tv(-PANEL * 3.5 + i * PANEL, 2.97, -D / 2 + 0.09, 0, PANEL, 0.02);
+}
+
+buildScreens();
+feeds.forEach(f => paint(f, 0));
+
+// ---------------------------------------------------------------- lighting
+scene.add(new THREE.AmbientLight(0x161a22, 0.38));
+scene.add(new THREE.HemisphereLight(0x1e2733, 0x07070a, 0.26));
+
+const backGlow = new THREE.PointLight(0xffa347, 2.0, 7.5, 2);
+backGlow.position.set(barX, 1.9, BACK_Z + 0.5);
+scene.add(backGlow);
+
+/* =====================================================================
+   RAIN FROM THE CEILING
+   Columns of glyphs that drop out of the ceiling and fall to the floor,
+   so looking up you see code raining down on you.
+   ===================================================================== */
+let FALL = null;
+function buildFallingRain() {
+  const chars = GLYPHS;
+  const G = 8, S = 512, cell = S / G;                       // 8x8 glyph atlas
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle";
+  x.font = `${Math.round(cell * 0.8)}px monospace`;
+  for (let i = 0; i < G * G; i++) {
+    x.fillText(chars.charAt(i % chars.length), (i % G) * cell + cell / 2, Math.floor(i / G) * cell + cell / 2);
+  }
+  const atlas = new THREE.CanvasTexture(c);
+  atlas.minFilter = THREE.LinearFilter;
+
+  const COLORS = RAIN_COLORS.map(h => new THREE.Color(h));
+  const STREAMS = touch ? 36 : 70;    // how many falling columns
+  const TRAIL = 7;                    // glyphs per column
+  const N = STREAMS * TRAIL;
+  const pos = new Float32Array(N * 3), info = new Float32Array(N * 4), col = new Float32Array(N * 3);
+  let k = 0;
+  for (let s = 0; s < STREAMS; s++) {
+    const sx = (Math.random() - 0.5) * (ROOM.hw * 2 - 1);
+    const sz = (Math.random() - 0.5) * (ROOM.hd * 2 - 1);
+    const speed = 0.55 + Math.random() * 0.8;   // meters per second
+    const phase = Math.random();
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    for (let t = 0; t < TRAIL; t++, k++) {
+      pos[k * 3] = sx; pos[k * 3 + 1] = 0; pos[k * 3 + 2] = sz;
+      info[k * 4] = speed; info[k * 4 + 1] = phase; info[k * 4 + 2] = t; info[k * 4 + 3] = Math.random();
+      col[k * 3] = color.r; col[k * 3 + 1] = color.g; col[k * 3 + 2] = color.b;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aInfo", new THREE.BufferAttribute(info, 4));
+  geo.setAttribute("aColor", new THREE.BufferAttribute(col, 3));
+
+  FALL = new THREE.ShaderMaterial({
+    uniforms: {
+      uAtlas: { value: atlas }, uTime: { value: reduced ? 7.3 : 0 }, uScale: { value: 1 },
+      uCeil: { value: ROOM.h }, uTrail: { value: TRAIL }, uDuty: { value: 0.05 }
+    },
+    vertexShader: `
+      attribute vec4 aInfo; attribute vec3 aColor;
+      uniform float uTime; uniform float uScale; uniform float uCeil; uniform float uTrail; uniform float uDuty;
+      varying vec3 vColor; varying float vAlpha; varying float vGlyph;
+      const float GAP = 0.2;
+      void main(){
+        float span = uCeil + uTrail * GAP + 2.5;
+        float cycle = span / uDuty;                         // long idle gap between drops
+        float fall = mod(uTime * aInfo.x + aInfo.y * cycle, cycle);
+        float y = uCeil - fall + aInfo.z * GAP;             // head at the bottom, trail above it
+        float visible = step(0.0, y) * step(y, uCeil - 0.05);
+        vAlpha = visible * pow(1.0 - aInfo.z / uTrail, 1.6);
+        vColor = mix(aColor, vec3(1.0), step(aInfo.z, 0.5) * 0.75);  // bright white-ish head
+        vGlyph = floor(mod(aInfo.w * 64.0 + floor(uTime * (2.0 + aInfo.w * 6.0)), 64.0));
+        vec4 mv = modelViewMatrix * vec4(position.x, y, position.z, 1.0);
+        vAlpha *= exp(-${(FOG * FOG).toFixed(5)} * mv.z * mv.z);
+        gl_PointSize = min(0.2 * uScale / max(-mv.z, 0.1), 96.0) * visible;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D uAtlas;
+      varying vec3 vColor; varying float vAlpha; varying float vGlyph;
+      void main(){
+        if (vAlpha < 0.01) discard;
+        float cx = mod(vGlyph, 8.0), cy = floor(vGlyph / 8.0);
+        vec2 uv = vec2((cx + gl_PointCoord.x) / 8.0, (8.0 - cy - gl_PointCoord.y) / 8.0);
+        float g = texture2D(uAtlas, uv).a;
+        gl_FragColor = vec4(vColor * g * vAlpha * 1.2, 1.0);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  const pts = new THREE.Points(geo, FALL);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  updateFallScale();
+}
+function updateFallScale() {
+  if (!FALL) return;
+  FALL.uniforms.uScale.value = renderer.getPixelRatio() * innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+}
+buildFallingRain();
+
+// ---------------------------------------------------------------- collision
+const blockers = [
+  { x: barX, z: BAR_Z, hw: BAR_LEN / 2 + 0.2, hd: BAR_W / 2 + 0.3 },
+  { x: barX, z: BACK_Z, hw: BAR_LEN / 2, hd: 0.4 },
+];
+TABLES.forEach(([x, z]) => blockers.push({ x, z, hw: 0.75, hd: 0.75 }));
+BOOTHS.forEach(([x, z, ry, sides]) => {
+  const turned = Math.abs(Math.sin(ry)) > 0.5;
+  const one = sides && sides.length === 1;
+  const half = one ? 0.78 : BOOTH_W / 2;           // one bench plus its table
+  const shift = one ? sides[0] * 0.2 : 0;          // sits off-centre toward the bench
+  blockers.push({
+    x: x + shift * Math.cos(ry),
+    z: z - shift * Math.sin(ry),
+    hw: turned ? BOOTH_D / 2 : half,
+    hd: turned ? half : BOOTH_D / 2
+  });
+});
+
+blockers.push({ x: JUKE_X, z: JUKE_Z, hw: 0.4, hd: 0.72 });
+blockers.push({ x: TAPWALL_X, z: TAPWALL_Z, hw: TAPWALL_W / 2, hd: 0.2 });
+
+const RADIUS = 0.35;
+function resolve(pos) {
+  pos.x = Math.max(-W / 2 + RADIUS, Math.min(W / 2 - RADIUS, pos.x));
+  pos.z = Math.max(-D / 2 + RADIUS, Math.min(D / 2 - RADIUS, pos.z));
+  for (const b of blockers) {
+    const dx = pos.x - b.x, dz = pos.z - b.z;
+    const ox = b.hw + RADIUS - Math.abs(dx);
+    const oz = b.hd + RADIUS - Math.abs(dz);
+    if (ox > 0 && oz > 0) {
+      if (ox < oz) pos.x += Math.sign(dx || 1) * ox;
+      else pos.z += Math.sign(dz || 1) * oz;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- controls
+// Desktop: drag to look, scroll to walk, click to interact. The cursor is
+// never captured. Touch: left thumbstick walks, swiping anywhere looks.
+const canvas = renderer.domElement;
+const hud    = document.getElementById('hud');
+const hint   = document.getElementById('hint');
+
+let yaw = 0;            // 0 looks down -Z, straight at the bar
+let pitch = 0;
+const PITCH_MAX = 1.45;
+const clampPitch = () => { pitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, pitch)); };
+
+// Drag is keyed to the angle each pixel covers on screen, scaled by LOOK_GAIN.
+// At 1.0 whatever you grab stays exactly under the cursor; above that the view
+// runs ahead of your hand for a looser feel. 1.0-3.0 is the useful range.
+const LOOK_GAIN = 1.8;
+let radPerPxX = 0.0013, radPerPxY = 0.0013;
+function measureLook() {
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  radPerPxX = hFov / Math.max(1, canvas.clientWidth)  * LOOK_GAIN;
+  radPerPxY = vFov / Math.max(1, canvas.clientHeight) * LOOK_GAIN;
+}
+measureLook();
+
+let started = false, rainLive = false;
+let jbOpen = false, chatOpen = false, exitOpen = false;
+let panelOpen = false;      // true when any panel is showing
+const syncPanels = () => { panelOpen = jbOpen || chatOpen || exitOpen; };
+let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, slip = 0;
+const mouseNDC = new THREE.Vector2(0, 0);
+let scrollStep = 0;
+
+// A browser won't let audio play until the page has seen a gesture, so the
+// first input unlocks the audio context. That is ALL it does - nothing plays
+// until someone works the jukebox.
+function armAudio() {
+  const go = () => {
+    if (listener.context.state === 'suspended') listener.context.resume();
+    ['pointerdown', 'keydown', 'touchstart'].forEach(ev => removeEventListener(ev, go));
+  };
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, go, { passive: true }));
+}
+
+function enter() {
+  if (started) return;
+  started = true;
+  hud.style.opacity = '0';
+  setTimeout(() => { hud.style.display = 'none'; }, 600);
+  hint.textContent = touch ? 'swipe to look \u00b7 two fingers to walk'
+                           : 'WASD or arrows to walk, drag to look';
+  armAudio();
+}
+setTimeout(enter, 1000);        // one second of welcome, then you're in
+
+// ---- keyboard walking (desktop) ----------------------------------------
+const keys = {};
+const SWALLOW = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// ---- mouse -------------------------------------------------------------
+function setNDC(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  mouseNDC.set((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+}
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault(); bump();                 // no native image/text drag mid-look
+  dragging = true; slip = 0;
+  lastX = downX = e.clientX; lastY = downY = e.clientY;
+  setCursor('grabbing');
+});
+addEventListener('mousemove', e => {
+  bump();
+  setNDC(e.clientX, e.clientY);
+  if (!dragging) return;
+  yaw   += (e.clientX - lastX) * radPerPxX;
+  pitch += (e.clientY - lastY) * radPerPxY;
+  slip  += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+  lastX = e.clientX; lastY = e.clientY;
+  clampPitch();
+});
+addEventListener('mouseup', () => { dragging = false; setCursor('grab'); });
+
+// writing cursor/label styles every frame causes style recalcs, so only on change
+let curCursor = '';
+function setCursor(c) { if (c !== curCursor) { curCursor = c; canvas.style.cursor = c; } }
+setCursor('grab');
+
+canvas.addEventListener('click', e => {
+  if (!started) return enter();
+  if (exitOpen || slip > 6) return;          // that was a look-around drag
+  setNDC(e.clientX, e.clientY);
+  const hitTarget = pickTarget();
+  if (hitTarget === 'jukebox') openPanel();
+  else if (hitTarget === 'door') openExit();
+  else if (hitTarget === 'ejak') openChat();
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault(); bump();
+  let d = e.deltaY;
+  if (e.deltaMode === 1) d *= 16;
+  else if (e.deltaMode === 2) d *= 400;
+  scrollStep += Math.max(-0.9, Math.min(0.9, -d * 0.004));
+}, { passive: false });
+
+// ---- touch: one finger looks, two fingers walk -------------------------
+// Spreading two fingers moves you forward, pinching them moves you back - the
+// same glide the mouse wheel drives, so both devices behave the same way.
+let lookId = null, pinching = false, pinchLast = 0, pinchStartY = 0;
+let touchDrive = 0;                 // held two-finger drag, -1..1, walks you along
+const spread = e => Math.hypot(
+  e.touches[0].clientX - e.touches[1].clientX,
+  e.touches[0].clientY - e.touches[1].clientY
+);
+const midY = e => (e.touches[0].clientY + e.touches[1].clientY) / 2;
+canvas.addEventListener('touchstart', e => {
+  bump();
+  if (!started) { enter(); return; }
+  if (e.touches.length >= 2) {
+    pinching = true; lookId = null;
+    pinchLast = spread(e); pinchStartY = midY(e); touchDrive = 0;
+    return;
+  }
+  const t = e.changedTouches[0];
+  lookId = t.identifier; lastX = downX = t.clientX; lastY = downY = t.clientY; slip = 0;
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  bump();
+  if (pinching && e.touches.length >= 2) {
+    // spread/pinch nudges you a step; holding the pair up or down keeps you walking
+    const d = spread(e);
+    scrollStep += Math.max(-0.5, Math.min(0.5, (d - pinchLast) * 0.010));
+    pinchLast = d;
+    const drag = (pinchStartY - midY(e)) / 110;      // up is forward
+    touchDrive = Math.max(-1, Math.min(1, Math.abs(drag) < 0.12 ? 0 : drag));
+    return;
+  }
+  for (const t of e.changedTouches) {
+    if (t.identifier !== lookId) continue;
+    yaw   += (t.clientX - lastX) * radPerPxX * 1.25;
+    pitch += (t.clientY - lastY) * radPerPxY * 1.25;
+    slip  += Math.abs(t.clientX - lastX) + Math.abs(t.clientY - lastY);
+    lastX = t.clientX; lastY = t.clientY;
+    clampPitch();
+  }
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (pinching) {
+    if (e.touches.length < 2) { pinching = false; touchDrive = 0; }
+    return;
+  }
+  for (const t of e.changedTouches) {
+    if (t.identifier !== lookId) continue;
+    if (slip < 10 && started && !exitOpen) {      // a tap, not a swipe
+      setNDC(t.clientX, t.clientY);
+      const tapped = pickTarget();
+      if (tapped === 'jukebox') openPanel();
+      else if (tapped === 'door') openExit();
+      else if (tapped === 'ejak') openChat();
+    }
+    lookId = null;
+  }
+});
+
+// ---- keys: just the two shortcuts --------------------------------------
+addEventListener('keydown', e => {
+  bump();
+  const typing = /^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName || '');
+  if (e.code === 'Escape') { closePanel(); closeExit(); closeChat(); return; }
+  if (typing) return;
+  if (SWALLOW.indexOf(e.code) >= 0) e.preventDefault();
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (e.code === 'KeyR') rainLive = !rainLive;
+  if (e.code === 'KeyP') {
+    statsOn = !statsOn;
+    statsBox.style.display = statsOn ? 'block' : 'none';
+  }
+  if (e.code === 'KeyJ') panelOpen ? closePanel() : openPanel();
+});
+
+/* ----------------------------------------------------------------------
+   HOLOGRAM FIGURES
+   A photo made to read as a solid figure: it turns to follow you, the image
+   is warped over a cylinder so features shift against the outline as you
+   move, and the backdrop colour is keyed out. Used for the bartender and
+   for the regular sitting in the corner booth.
+   ---------------------------------------------------------------------- */
+const TMP = new THREE.Vector3();
+const HOLO_VERT = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const HOLO_FRAG = `
+  uniform sampler2D uMap;
+  uniform vec3 uKey, uTint;
+  uniform float uTol, uSoft, uTime, uOpacity, uFlicker, uFade, uSolid, uAlphaOnly;
+  uniform float uFx, uGain, uGamma, uRim, uSweep;
+  uniform vec2 uParallax;
+  varying vec2 vUv;
+
+  float keyed(vec2 uv) {
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    vec4 t = texture2D(uMap, uv);
+    // once the background has been flood-filled away, alpha is the whole story
+    if (uAlphaOnly > 0.5) return smoothstep(0.25, 0.62, t.a);
+    return t.a * smoothstep(uTol, uTol + uSoft, distance(t.rgb, uKey));
+  }
+  float hash(float n) { return fract(sin(n) * 43758.5453); }
+
+  void main() {
+    // treat the figure as a cylinder: centre sits proud, edges fall away
+    float cx = (vUv.x - 0.5) * 2.0;
+    float round = sqrt(max(0.0, 1.0 - cx * cx));
+    vec2 uv = vUv + uParallax * round;
+
+    float band = floor(vUv.y * 26.0);
+    float glitch = step(0.9965, hash(band + floor(uTime * 8.0)));
+    uv.x += glitch * (hash(band) - 0.5) * 0.018 * uFx;
+
+    float a = keyed(uv);
+    // A colour key leaves partial alpha wherever the subject's own tones sit near
+    // the backdrop. Hardening it snaps those areas opaque, keeping a thin edge.
+    if (uSolid > 0.5) a = smoothstep(0.28, 0.55, a);
+    if (a < 0.02) discard;
+
+    // gamma below 1 opens up the shadows, so a dark photo still reads as a face
+    vec3 col = pow(max(texture2D(uMap, uv).rgb, 0.0), vec3(uGamma)) * uGain;
+
+    float rim = abs(a - keyed(uv + vec2(0.007, 0.0)))
+              + abs(a - keyed(uv + vec2(0.0, 0.007)));
+    col += uTint * clamp(rim, 0.0, 1.0) * uRim;                     // edge light
+    col *= 0.88 + 0.12 * round;                                     // gentle curve shading
+    col *= mix(1.0, 0.96 + 0.04 * sin(vUv.y * 430.0 - uTime * 4.5), uFx);
+    float sweep = smoothstep(0.05, 0.0, abs(vUv.y - fract(uTime * 0.17)));
+    col += vec3(0.9, 0.95, 1.0) * sweep * 0.12 * uFx * uSweep;      // rising band
+
+    a *= uOpacity * uFlicker;
+    if (uFade > 0.001) a *= smoothstep(0.0, uFade, vUv.y);   // dissolve at the base
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), clamp(a, 0.0, 1.0));
+  }`;
+
+function createHologram(opt) {
+  const HEIGHT = opt.height, BASE = opt.base || 0;
+  const CLAMP = opt.clamp === undefined ? 0.95 : opt.clamp;
+  const PARALLAX = opt.parallax === undefined ? 0.055 : opt.parallax;
+  const TINT = opt.tint || [0.75, 0.85, 1.0];   // edge-light colour only
+
+  const g = new THREE.Group();
+  g.position.set(opt.pos[0], 0, opt.pos[1]);
+  g.rotation.y = opt.facing || 0;
+  scene.add(g);
+
+  const base = {
+    uMap:      { value: null },
+    uKey:      { value: new THREE.Vector3() },
+    uTol:      { value: opt.keyTol === undefined ? 0.30 : opt.keyTol },
+    uSoft:     { value: 0.12 },
+    uTime:     { value: 0 },
+    uOpacity:  { value: opt.opacity === undefined ? 0.94 : opt.opacity },
+    uFlicker:  { value: 1 },
+    uFade:     { value: opt.fade === undefined ? 0.10 : opt.fade },
+    uSolid:    { value: opt.solid ? 1 : 0 },
+    uAlphaOnly:{ value: 0 },
+    uFx:       { value: opt.fx === undefined ? 1 : opt.fx },
+    uGain:     { value: opt.gain === undefined ? 1.08 : opt.gain },
+    uGamma:    { value: opt.gamma === undefined ? 1 : opt.gamma },
+    uRim:      { value: opt.rim === undefined ? 0.45 : opt.rim },
+    uSweep:    { value: opt.sweep === undefined ? 1 : opt.sweep },
+    uParallax: { value: new THREE.Vector2() },
+    uTint:     { value: new THREE.Vector3().fromArray(TINT) }
+  };
+  const mkMat = blend => new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.clone(base),
+    vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: blend
+  });
+
+  const body = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mkMat(THREE.NormalBlending));
+  const mats = [body.material];
+  let aura = null;
+  if (opt.aura !== false) {
+    aura = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mkMat(THREE.AdditiveBlending));
+    aura.material.uniforms.uOpacity.value = 0.10;   // barely-there halo
+    aura.position.z = -0.05;
+    mats.push(aura.material);
+    g.add(aura);
+  }
+  g.add(body);
+
+  let pool = null;
+  if (opt.pool !== false) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const gr = x.createRadialGradient(64, 64, 2, 64, 64, 62);
+    gr.addColorStop(0, 'rgba(205,225,245,0.7)');
+    gr.addColorStop(1, 'rgba(205,225,245,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+    pool = new THREE.Mesh(
+      new THREE.PlaneGeometry(HEIGHT * 0.8, HEIGHT * 0.55),
+      new THREE.MeshBasicMaterial({
+        map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = BASE + 0.02;
+    g.add(pool);
+  }
+
+  let lamp = null;
+  if (opt.lamp !== false) {
+    lamp = new THREE.PointLight(0xcfe0f2, 0.7, 4.5, 2);
+    lamp.position.set(0, BASE + HEIGHT * 0.8, 0.4);
+    g.add(lamp);
+  }
+
+  function fit(img) {
+    const w = HEIGHT * (img.width / img.height);
+    body.scale.set(w, HEIGHT, 1);
+    body.position.y = BASE + HEIGHT / 2;
+    if (aura) {
+      aura.scale.set(w * 1.05, HEIGHT * 1.05, 1);
+      aura.position.y = BASE + HEIGHT / 2;
+    }
+  }
+  // Used only for images with no alpha of their own. A plain colour key turns
+  // any dark clothing half-transparent, so instead this floods inward from the
+  // border and removes only background actually connected to the edge.
+  function floodCutout(img) {
+    const MAX = 900;                                   // cap the work on big photos
+    const sc = Math.min(1, MAX / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0, w, h);
+    const id = x.getImageData(0, 0, w, h), px = id.data;
+
+    // If the file already carries transparency (a PNG cut out in an editor),
+    // trust it and skip the fill entirely - nothing guesses better than a
+    // hand-made alpha channel.
+    let clear = 0;
+    for (let k = 0; k < w * h; k += 7) if (px[k * 4 + 3] < 250) clear++;
+    if (clear > (w * h / 7) * 0.05) {
+      featherAlpha(px, w, h);
+      x.putImageData(id, 0, 0);
+      return c;
+    }
+
+    let sr = 0, sg = 0, sb = 0, n = 0;
+    const seed = i => { sr += px[i * 4]; sg += px[i * 4 + 1]; sb += px[i * 4 + 2]; n++; };
+    for (let i = 0; i < w; i++) { seed(i); seed((h - 1) * w + i); }
+    for (let j = 0; j < h; j++) { seed(j * w); seed(j * w + w - 1); }
+    sr /= n; sg /= n; sb /= n;
+
+    // On a dark photo the subject and the backdrop are close in colour, so a
+    // generous tolerance lets the fill leak straight through the figure. Run it,
+    // measure how much it ate, and back the tolerance off if it clearly bled.
+    let tol = (opt.keyTol === undefined ? 0.17 : opt.keyTol) * 255 * 1.732;
+    let mask = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      mask = new Uint8Array(w * h);
+      const stack = [];
+      for (let i = 0; i < w; i++) { stack.push(i, (h - 1) * w + i); }
+      for (let j = 0; j < h; j++) { stack.push(j * w, j * w + w - 1); }
+      let cut = 0;
+      while (stack.length) {
+        const k = stack.pop();
+        if (mask[k]) continue;
+        mask[k] = 1;
+        const o = k * 4;
+        const dr = px[o] - sr, dg = px[o + 1] - sg, db = px[o + 2] - sb;
+        if (Math.sqrt(dr * dr + dg * dg + db * db) > tol) { mask[k] = 2; continue; }
+        cut++;
+        const cx = k % w, cy = (k - cx) / w;
+        if (cx > 0) stack.push(k - 1);
+        if (cx < w - 1) stack.push(k + 1);
+        if (cy > 0) stack.push(k - w);
+        if (cy < h - 1) stack.push(k + w);
+      }
+      if (cut / (w * h) < 0.86) break;          // sane result, keep it
+      tol *= 0.5;                                // it bled through - tighten and retry
+    }
+    for (let k = 0; k < w * h; k++) if (mask[k] === 1) px[k * 4 + 3] = 0;
+    featherAlpha(px, w, h);
+    x.putImageData(id, 0, 0);
+    return c;
+  }
+
+  // one pass of alpha blur so the silhouette isn't a jagged stair-step
+  function featherAlpha(px, w, h) {
+    const a0 = new Uint8ClampedArray(w * h);
+    for (let i = 0; i < w * h; i++) a0[i] = px[i * 4 + 3];
+    for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) {
+      const k = y * w + xx;
+      px[k * 4 + 3] = (a0[k] * 4 + a0[k - 1] + a0[k + 1] + a0[k - w] + a0[k + w]) / 8;
+    }
+  }
+
+  function autoKey(img) {
+    if (opt.keyColor) return new THREE.Vector3().fromArray(opt.keyColor);
+    const n = 64, c = document.createElement('canvas');
+    c.width = c.height = n;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0, n, n);
+    const d = x.getImageData(0, 0, n, n).data;
+    let r = 0, gg = 0, b = 0, k = 0;
+    const take = (px, py) => { const i = (py * n + px) * 4; r += d[i]; gg += d[i+1]; b += d[i+2]; k++; };
+    for (let i = 0; i < n; i++) { take(i, 0); take(i, n-1); take(0, i); take(n-1, i); }
+    return new THREE.Vector3(r / k / 255, gg / k / 255, b / k / 255);
+  }
+  function apply(img, tex) {
+    let map = tex, alphaOnly = 0;
+    try {
+      const cut = floodCutout(img);                    // needs a same-origin image
+      map = new THREE.CanvasTexture(cut);
+      alphaOnly = 1;
+    } catch (e) {
+      map = tex;                                       // fall back to the colour key
+    }
+    const key = autoKey(img);
+    mats.forEach(m => {
+      m.uniforms.uMap.value = map;
+      m.uniforms.uKey.value.copy(key);
+      m.uniforms.uAlphaOnly.value = alphaOnly;
+    });
+    fit(img);
+  }
+
+  // stand-in so the figure is visible before the photo is added
+  function placeholder() {
+    const seated = opt.placeholder === 'sit';
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = seated ? 288 : 448;
+    const x = c.getContext('2d');
+    x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = '#cfd8e6';
+    if (seated) {
+      x.beginPath(); x.arc(128, 58, 40, 0, 7); x.fill();
+      x.beginPath(); x.moveTo(74, 232); x.lineTo(84, 142);
+      x.quadraticCurveTo(128, 100, 172, 142); x.lineTo(182, 232); x.closePath(); x.fill();
+      x.fillRect(58, 232, 140, 40);                     // thighs
+      x.fillStyle = '#8fa6bd'; x.fillRect(104, 142, 48, 90);
+    } else {
+      x.beginPath(); x.arc(128, 82, 46, 0, 7); x.fill();
+      x.beginPath(); x.moveTo(52, 448); x.lineTo(70, 190);
+      x.quadraticCurveTo(128, 140, 186, 190); x.lineTo(204, 448); x.closePath(); x.fill();
+      x.fillStyle = '#8fa6bd'; x.fillRect(96, 190, 64, 258);
+    }
+    apply(c, new THREE.CanvasTexture(c));
+  }
+
+  // Accept a list and take the first that loads, so swapping a jpg for a png
+  // needs no code change. A miss on all of them logs rather than failing mute.
+  const sources = Array.isArray(opt.src) ? opt.src.slice() : [opt.src];
+  (function tryLoad(i) {
+    if (i >= sources.length) {
+      console.warn('hologram: none of these loaded ->', sources.join(', '));
+      return placeholder();
+    }
+    new THREE.TextureLoader().load(
+      sources[i],
+      tex => apply(tex.image, tex),
+      undefined,
+      () => tryLoad(i + 1)
+    );
+  })(0);
+
+  return {
+    group: g,
+    update(elapsed, dt) {
+      if (CLAMP > 0) {
+        const want = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z);
+        const rest = opt.facing || 0;
+        const aim = rest + Math.max(-CLAMP, Math.min(CLAMP, want - rest));
+        g.rotation.y += (aim - g.rotation.y) * Math.min(1, dt * 3);
+      }
+      const local = body.worldToLocal(TMP.copy(camera.position));
+      const len = local.length() || 1;
+      const fx = opt.fx === undefined ? 1 : opt.fx;
+      const flick = 1 - (0.025 - Math.sin(elapsed * 23.0) * 0.008 - Math.sin(elapsed * 7.3) * 0.012) * fx;
+      mats.forEach(m => {
+        m.uniforms.uTime.value = elapsed;
+        m.uniforms.uFlicker.value = flick;
+        m.uniforms.uParallax.value.set(local.x / len * PARALLAX, local.y / len * PARALLAX * 0.4);
+      });
+      if (pool) pool.material.opacity = 0.26 + Math.sin(elapsed * 2.1) * 0.04;
+      if (lamp) lamp.intensity = 0.7 + (flick - 0.975) * 2.0;
+    }
+  };
+}
+
+// ---- the bartender, standing behind the bar ----------------------------
+// bar top surface sits at 1.22, so the image starts just below it and
+// finishes just under the video wall at 2.42
+const BARTENDER = createHologram({
+  src: ['ejak.png', 'ejak.jpg'],
+  height: 1.28, base: 0.99, pos: [barX, -4.07],   // 95% size, a couple of inches off
+  clamp: Math.PI / 4,      // the back of the bar, turning through 90 degrees
+  fade: 0,                 // no dissolve at the hem - he stays solid to the bottom
+  pool: false, lamp: false,
+  placeholder: 'stand'
+});
+
+// ---- the regular, sitting in the corner booth with his back to the wall -
+// bench centre works out to x 7.10, backrest at z -5.90
+const PATRON = createHologram({
+  src: ['strider.png', 'strider.jpg'],
+  height: 1.47,            // bottom of the image to the top of his head
+  base: 0.52,              // sitting on the cushion
+  pos: [7.12, -5.66],
+  facing: 0,               // fixed, looking straight out of the booth
+  clamp: 0,                // never turns
+  parallax: 0.045,
+  opacity: 1.0,            // fully solid, not a see-through projection
+  solid: true,
+  gain: 0.60, gamma: 1.10,   // his png is already bright; these bring it down
+  rim: 0,                    // a hand-cut alpha edge is too sharp for a rim light
+  sweep: 0,                // no rising band travelling up him
+  fx: 1.0,                 // scanlines, sweep, glitch bands and flicker all back
+  fade: 0,                 // still no dissolve across his lap
+  pool: false, lamp: false,
+  placeholder: 'sit'
+});
+
+/* =====================================================================
+   HOLO REGULARS
+   Simple hologram people: a few walk the room, a few sit at the bar and in
+   the booths, a few dance on the open floor.
+   ===================================================================== */
+function holoMaterial(color, intensity) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:     { value: new THREE.Color(color) },
+      uIntensity: { value: intensity },
+      uTime:      { value: 0 }
+    },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vView; varying float vY;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vView = normalize(-mv.xyz);
+        vY = (modelMatrix * vec4(position, 1.0)).y;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uIntensity; uniform float uTime;
+      varying vec3 vN; varying vec3 vView; varying float vY;
+      void main() {
+        // edges glow, the middle stays thin, so the volume reads without mass
+        float fres = 1.0 - abs(dot(normalize(vN), normalize(vView)));
+        float body = 0.16 + pow(fres, 2.0) * 1.4;
+        float scan = 0.84 + 0.16 * sin(vY * 90.0 - uTime * 2.5);
+        gl_FragColor = vec4(uColor * body * scan * uIntensity, 1.0);
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending
+  });
+  m.userData.base = intensity;
+  return m;
+}
+
+const avatars = [];
+const avMats = [];
+const avMatByColor = {};
+const AV = {
+  leg:   new THREE.CylinderGeometry(0.07, 0.055, 0.9, 8).translate(0, -0.45, 0),
+  thigh: new THREE.CylinderGeometry(0.075, 0.065, 0.46, 8).translate(0, -0.23, 0),
+  shin:  new THREE.CylinderGeometry(0.06, 0.05, 0.46, 8).translate(0, -0.23, 0),
+  torso: new THREE.CylinderGeometry(0.2, 0.14, 0.62, 10),
+  arm:   new THREE.CylinderGeometry(0.05, 0.04, 0.64, 6).translate(0, -0.32, 0),
+  head:  new THREE.SphereGeometry(0.12, 12, 10),
+  glass: new THREE.CylinderGeometry(0.046, 0.034, 0.14, 10).translate(0, 0.07, 0),
+  foam:  new THREE.CylinderGeometry(0.048, 0.048, 0.032, 10).translate(0, 0.155, 0)
+};
+const BEER_MAT = holoMaterial('#ffb347', 0.9);
+avMats.push(BEER_MAT);
+
+function makeAvatar(color, opt) {
+  opt = opt || {};
+  const hip = opt.hip === undefined ? 0.92 : opt.hip;
+  let mat = avMatByColor[color];
+  if (!mat) { mat = avMatByColor[color] = holoMaterial(color, 0.55); avMats.push(mat); }
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const part = (geo, x, y, parent) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, 0); parent.add(m); return m;
+  };
+  const pivot = (x, y) => { const g = new THREE.Group(); g.position.set(x, y, 0); body.add(g); return g; };
+
+  const legL = pivot(-0.11, hip), legR = pivot(0.11, hip);
+  if (opt.seated) {
+    // thigh forward from the hip, shin folded back down to the floor
+    [legL, legR].forEach(t => {
+      t.rotation.x = -Math.PI / 2;
+      part(AV.thigh, 0, 0, t);
+      const knee = new THREE.Group();
+      knee.position.set(0, -0.46, 0);
+      knee.rotation.x = Math.PI / 2;
+      part(AV.shin, 0, 0, knee);
+      t.add(knee);
+    });
+  } else {
+    part(AV.leg, 0, 0, legL); part(AV.leg, 0, 0, legR);
+  }
+  part(AV.torso, 0, hip + 0.34, body);
+  const armL = pivot(-0.26, hip + 0.60), armR = pivot(0.26, hip + 0.60);
+  part(AV.arm, 0, 0, armL); part(AV.arm, 0, 0, armR);
+
+  // the arm runs 0.64 from the shoulder pivot, so the hand sits at its end
+  const hand = new THREE.Group();
+  hand.position.set(0, -0.62, 0.03);
+  hand.add(new THREE.Mesh(AV.glass, BEER_MAT));   // foam dropped: 16 fewer draws
+  armR.add(hand);
+
+  const head = part(AV.head, 0, hip + 0.81, body);
+  const sc = opt.scale || (opt.seated ? 1 : 0.94 + Math.random() * 0.12);
+  root.scale.setScalar(sc);
+  (opt.parent || scene).add(root);
+  return { root, body, legL, legR, armL, armR, head, hand,
+           phase: Math.random() * 10, hip, restR: -0.62, restL: -0.55 };
+}
+
+/* ----------------------------------------------------------------------
+   THE SERVER
+   Built differently from the regulars: her torso is a lathed profile rather
+   than stacked cylinders, so hip, waist and shoulder actually curve. Silver
+   with a black dress and hair. She works the room, stopping at every booth
+   that has someone in it to see whether they need anything.
+   ---------------------------------------------------------------------- */
+const SRV_HIP = 0.90;                       // still shorter than the regulars' 0.92
+
+// A lathe spins one profile all the way around, so any curve it makes appears
+// front AND back. This walks the finished vertices and pulls the rear ones in
+// across a band of heights, leaving the front profile untouched.
+function shapeFront(geo, yIn, yFull, yOut, yEnd, amount) {
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  const ss = THREE.MathUtils.smoothstep;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const r = Math.hypot(v.x, v.z);
+    if (r < 1e-5) continue;
+    const band = ss(v.y, yIn, yFull) * (1 - ss(v.y, yOut, yEnd));
+    if (band <= 0) continue;
+    const back = 1 - ((v.z / r) * 0.5 + 0.5);   // 0 at the front, 1 at the back
+    const k = 1 - amount * band * back;
+    pos.setXYZ(i, v.x * k, v.y, v.z * k);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+const SRV = {
+  // profile spun around the vertical axis: hip -> pinched waist -> bust -> shoulder
+  torso: new THREE.LatheGeometry([
+    [0.152, 0.000], [0.172, 0.075], [0.108, 0.168], [0.073, 0.252],
+    [0.122, 0.322], [0.170, 0.370], [0.150, 0.412], [0.094, 0.474],
+    [0.074, 0.536], [0.048, 0.594]
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 16),
+  skirt: new THREE.LatheGeometry([
+    [0.168, 0.00], [0.190, -0.10], [0.214, -0.20], [0.220, -0.24]
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 16),
+  seat:  new THREE.SphereGeometry(0.115, 12, 10),
+  thigh: new THREE.CylinderGeometry(0.050, 0.040, 0.46, 8).translate(0, -0.23, 0),
+  shin:  new THREE.CylinderGeometry(0.040, 0.030, 0.44, 8).translate(0, -0.22, 0),
+  arm:   new THREE.CylinderGeometry(0.031, 0.025, 0.54, 6).translate(0, -0.27, 0),
+  head:  new THREE.SphereGeometry(0.100, 14, 12),
+  hair:  new THREE.SphereGeometry(0.121, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.66),
+  tail:  new THREE.CylinderGeometry(0.050, 0.019, 0.32, 8).translate(0, -0.16, 0)
+};
+// bust band runs roughly y 0.28 - 0.45 on her profile; the back comes in 42%
+shapeFront(SRV.torso, 0.265, 0.325, 0.420, 0.495, 0.42);
+
+const SRV_SILVER = holoMaterial('#e3ebf4', 0.52);
+const SRV_BLACK  = holoMaterial('#6d7889', 0.30);   // reads as black against the silver
+avMats.push(SRV_SILVER, SRV_BLACK);
+
+// A stand-and-face position in front of a booth: 1.4m out from its centre,
+// along the open side, looking back at the table.
+function boothStop(i) {
+  const [bx, bz, ry] = BOOTHS[i];
+  return { x: bx + Math.sin(ry) * 1.4, z: bz + Math.cos(ry) * 1.4, face: ry + Math.PI };
+}
+
+// The two chairs sit on the +36 and +216 degree diagonals, so she comes at the
+// table from 126 degrees, far enough out to clear both chairs.
+function tableStop(t) {
+  const [tx, tz] = TABLES[t];
+  const a = Math.PI * 0.7;
+  const x = tx + Math.cos(a) * 1.55, z = tz + Math.sin(a) * 1.55;
+  return { x, z, face: Math.atan2(tx - x, tz - z) };
+}
+
+function makeServer(servedBooths, servedTables) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const mesh = (geo, mat, y, parent) => {
+    const m = new THREE.Mesh(geo, mat); m.position.y = y || 0; (parent || body).add(m); return m;
+  };
+  const pivot = (x, y) => { const g = new THREE.Group(); g.position.set(x, y, 0); body.add(g); return g; };
+
+  const hipL = pivot(-0.082, SRV_HIP), hipR = pivot(0.082, SRV_HIP);
+  mesh(SRV.thigh, SRV_SILVER, 0, hipL); mesh(SRV.thigh, SRV_SILVER, 0, hipR);
+  const kneeL = new THREE.Group(), kneeR = new THREE.Group();
+  kneeL.position.y = -0.46; kneeR.position.y = -0.46;
+  hipL.add(kneeL); hipR.add(kneeR);
+  mesh(SRV.shin, SRV_SILVER, 0, kneeL); mesh(SRV.shin, SRV_SILVER, 0, kneeR);
+
+  mesh(SRV.torso, SRV_SILVER, SRV_HIP);
+  // a lathe is round, so a little sphere adds the shape a turned profile can't
+  const seat = mesh(SRV.seat, SRV_BLACK, SRV_HIP + 0.03);
+  seat.position.z = -0.055;
+  seat.scale.set(1.18, 0.74, 0.92);
+  mesh(SRV.skirt, SRV_BLACK, SRV_HIP + 0.02);
+
+  const armL = pivot(-0.158, SRV_HIP + 0.522), armR = pivot(0.158, SRV_HIP + 0.522);
+  mesh(SRV.arm, SRV_SILVER, 0, armL); mesh(SRV.arm, SRV_SILVER, 0, armR);
+
+  const head = mesh(SRV.head, SRV_SILVER, SRV_HIP + 0.716);
+  mesh(SRV.hair, SRV_BLACK, SRV_HIP + 0.727);
+  const tail = new THREE.Group();
+  tail.position.set(0, SRV_HIP + 0.762, -0.088);
+  tail.rotation.x = 0.35;
+  mesh(SRV.tail, SRV_BLACK, 0, tail);
+  body.add(tail);
+
+  // ---- her round: behind the bar, then every occupied booth in turn ----
+  const walls = { right: [], entry: [], left: [] };
+  servedBooths.forEach(i => {
+    const ry = BOOTHS[i][2];
+    if (Math.abs(ry + Math.PI / 2) < 0.1) walls.right.push(i);
+    else if (Math.abs(ry - Math.PI) < 0.1) walls.entry.push(i);
+    else walls.left.push(i);
+  });
+  walls.right.sort((a, b) => BOOTHS[a][1] - BOOTHS[b][1]);          // up the right side
+  walls.entry.sort((a, b) => BOOTHS[b][0] - BOOTHS[a][0]);          // right to left
+  walls.left.sort((a, b) => BOOTHS[b][1] - BOOTHS[a][1]);           // back down the left
+
+  const wps = [];
+  const go = (x, z, face) => wps.push({ x, z, face: face === undefined ? null : face });
+  // The bar's top slab overhangs to x -6.70..3.70 and back to z -4.025, so she
+  // runs behind it, clears the end square, and only then turns out to the floor.
+  go(-5.9, -4.45); go(4.25, -4.45); go(4.25, -1.60);
+  walls.right.forEach(i => { const st = boothStop(i); go(st.x, st.z, st.face); });
+  walls.entry.forEach(i => { const st = boothStop(i); go(st.x, st.z, st.face); });
+  if (walls.left.length || servedTables.length) go(-2.0, 3.70);      // across the top
+  servedTables.forEach(t => { const st = tableStop(t); go(st.x, st.z, st.face); });
+  walls.left.forEach(i => { const st = boothStop(i); go(st.x, st.z, st.face); });
+  // back down the left, stepping wide of the bar's other corner and the jukebox
+  go(-6.10, -2.10); go(-7.20, -2.60); go(-7.20, -4.45);
+
+  const segs = []; let total = 0;
+  for (let k = 0; k < wps.length; k++) {
+    const a = wps[k], b = wps[(k + 1) % wps.length];
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    segs.push({ a, b, len, start: total, idx: k });
+    total += len;
+  }
+  scene.add(root);
+  return { mode: 'serve', root, body, hipL, hipR, kneeL, kneeR, armL, armR, head, tail, seat,
+           wps, segs, total, dist: 0, speed: 0.8, phase: 0, pause: 0, faceTo: null };
+}
+
+function updateServer(av, dt, t) {
+  if (av.pause > 0) {
+    // standing at the table, checking whether anyone needs anything
+    av.pause -= dt;
+    const k = Math.min(1, Math.max(0, 1 - Math.abs(av.pause - 1.5) / 1.1));
+    av.hipL.rotation.x = av.hipR.rotation.x = 0;
+    av.kneeL.rotation.x = av.kneeR.rotation.x = 0;
+    av.armR.rotation.x = -0.25 - k * 0.55;            // open hand, asking
+    av.armR.rotation.z = -0.18 - k * 0.42 + Math.sin(t * 3.4) * 0.05 * k;
+    av.armL.rotation.x = -0.12;
+    av.armL.rotation.z = 0.14;
+    av.body.rotation.x = k * 0.09;                    // leans in a little
+    av.body.rotation.z = Math.sin(t * 1.4) * 0.03;
+    av.body.position.x = 0;
+    av.body.position.y = 0;
+    av.tail.rotation.z = Math.sin(t * 1.6) * 0.06;
+    if (av.faceTo !== null) {
+      let d = av.faceTo - av.root.rotation.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      av.root.rotation.y += d * Math.min(1, dt * 4);
+    }
+  } else {
+    const prev = av.dist;
+    av.dist = (av.dist + dt * av.speed) % av.total;
+
+    let seg = av.segs[0];
+    for (const sg of av.segs) if (av.dist >= sg.start) seg = sg;
+    const k = (av.dist - seg.start) / seg.len;
+    av.root.position.set(seg.a.x + (seg.b.x - seg.a.x) * k, 0,
+                         seg.a.z + (seg.b.z - seg.a.z) * k);
+
+    const target = Math.atan2(seg.b.x - seg.a.x, seg.b.z - seg.a.z);
+    let d = target - av.root.rotation.y;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    av.root.rotation.y += d * Math.min(1, dt * 3.6);
+
+    av.phase += dt * av.speed * 5.0;
+    const sw = Math.sin(av.phase);
+    // short, even steps: the legs stay under her rather than reaching out
+    av.hipL.rotation.x = sw * 0.26;  av.hipR.rotation.x = -sw * 0.26;
+    // positive knee rotation folds the shin backwards, which is the way a knee goes
+    av.kneeL.rotation.x = Math.max(0, sw) * 0.34;
+    av.kneeR.rotation.x = Math.max(0, -sw) * 0.34;
+    av.armL.rotation.x = sw * 0.16;   av.armL.rotation.z = 0.09;
+    av.armR.rotation.x = -sw * 0.16;  av.armR.rotation.z = -0.09;
+    av.body.position.y = Math.abs(Math.cos(av.phase)) * 0.012;
+    av.body.position.x = sw * 0.006;     // almost no side-to-side
+    av.body.rotation.z = -sw * 0.015;
+    av.body.rotation.x = 0;
+    av.tail.rotation.z = -sw * 0.08;
+    av.tail.rotation.x = 0.35 + Math.abs(sw) * 0.05;
+
+    // arriving at a waypoint that is a table means stopping there
+    const reached = av.segs.find(sg => sg.start > prev && sg.start <= av.dist);
+    if (reached && av.wps[reached.idx].face !== null) {
+      av.pause = 3.2;
+      av.faceTo = av.wps[reached.idx].face;
+    }
+  }
+  av.head.position.y = SRV_HIP + 0.716 + Math.sin(t * 2.1) * 0.007;
+}
+
+function buildAvatars() {
+  const STOOL_Z = BAR_Z + 1.12;              // matches the stools above
+  // stool xs run barX - 4 + i * 1.6, so these land on real stools
+  const stools = [
+    { x: barX - 2.4, c: '#ff6ed2' },         // -3.9  pink
+    { x: barX + 2.4, c: '#b98cff' },         //  0.9  purple, one stool right of the sign
+    { x: barX + 4.0, c: '#5fe9ff' }          //  2.5  blue, sitting next to the purple
+  ];
+  // Booth order is: 0,1 left wall | 2,3,4 right wall | 5 corner | 6,7 entry wall.
+  // The corner is the one-sided booth, so find it rather than trusting an index.
+  const CORNER_BOOTH = BOOTHS.findIndex(b => b[3]);
+  // [booth index, bench side, colour]
+  const seats = [
+    [3, -1, '#5fe9ff'], [3,  1, '#8ff7ff'],  // right wall, facing pair
+    [0, -1, '#ff6ed2'], [0,  1, '#8ff7ff'],  // left booth: one pink, one blue
+    [1, -1, '#3dffaa']                       // a scattering in the other booths
+  ];
+  // four smaller ones packed into the booth by the door, two to a bench,
+  // greens and blues crossed corner to corner
+  const KID = 0.78;
+  const kids = [
+    [7, -1, -0.34, '#3dffaa'], [7, -1,  0.26, '#5fe9ff'],
+    [7,  1, -0.34, '#5fe9ff'], [7,  1,  0.26, '#3dffaa']
+  ];
+  const served = [];                         // booths that end up with someone in them
+  const nStool = stools.length;
+  const nSeat  = seats.length;
+
+  for (let i = 0; i < nStool; i++) {
+    const av = makeAvatar(stools[i].c, { seated: true, hip: 0.86 });
+    av.mode = 'sit';
+    av.root.position.set(stools[i].x, 0, STOOL_Z);
+    av.root.rotation.y = Math.PI;            // facing the counter
+    av.restR = -1.22;                        // forearm out onto the bar top
+    av.restL = -1.18;
+    avatars.push(av);
+  }
+
+  for (let i = 0; i < nSeat; i++) {
+    const [bi, side, c] = seats[i];
+    const g = BOOTH_GROUPS[bi];
+    if (!g || bi === CORNER_BOOTH) continue;   // never seat anyone with Strider
+    if (served.indexOf(bi) < 0) served.push(bi);
+    const av = makeAvatar(c, { seated: true, hip: 0.60, parent: g });
+    av.mode = 'sit';
+    av.root.position.set(side * 0.66, 0, -0.05);
+    av.root.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;   // facing each other
+    av.restR = -0.83;                        // glass down on the booth table
+    av.restL = -0.78;
+    avatars.push(av);
+  }
+
+  for (let i = 0; i < kids.length; i++) {
+    const [bi, side, along, c] = kids[i];
+    const g = BOOTH_GROUPS[bi];
+    if (!g || bi === CORNER_BOOTH) continue;
+    if (served.indexOf(bi) < 0) served.push(bi);
+    const av = makeAvatar(c, { seated: true, hip: 0.60, parent: g, scale: KID });
+    av.mode = 'sit';
+    // scaling shrinks the hip too, so lift the root to put them back on the cushion
+    av.root.position.set(side * 0.66, 0.60 * (1 - KID), -0.05 + along);
+    av.root.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    av.restR = -0.92;                        // shorter arms, steeper reach
+    av.restL = -0.86;
+    avatars.push(av);
+  }
+  const servedTables = [];   // round tables are empty, so she skips them
+
+  avatars.push(makeServer(served, servedTables));
+  updateAvatars(0, 0);
+}
+
+function updateAvatars(dt, t) {
+  if (reduced && dt > 0) return;
+  if (!reduced) avMats.forEach((m, i) => {
+    m.uniforms.uTime.value = t;
+    m.uniforms.uIntensity.value =
+      m.userData.base * (0.93 + Math.sin(t * 27 + i * 2.1) * 0.05 + (Math.random() < 0.004 ? -0.4 : 0));
+  });
+
+  for (const av of avatars) {
+    if (av.mode === 'serve') { updateServer(av, dt, t); continue; }
+    const p = av.phase;
+
+    // one long sip every seven seconds or so, out of step with each other
+    const c = (t * 0.45 + p) % 7;
+    const sip = c < 1.4 ? Math.sin(c * Math.PI / 1.4) : 0;
+
+    av.armR.rotation.x = av.restR - sip * 1.15;        // glass up to the mouth
+    av.armR.rotation.z = -0.12 - sip * 0.12;
+    av.armL.rotation.x = av.restL + Math.sin(t * 1.3 + p) * 0.09;
+    av.armL.rotation.z = 0.12;
+
+    // the pint stays upright however the arm swings
+    av.hand.rotation.x = -av.armR.rotation.x;
+    av.hand.rotation.z = -av.armR.rotation.z;
+
+    av.body.rotation.z = Math.sin(t * 0.8 + p) * 0.025;
+    av.body.rotation.y = Math.sin(t * 0.5 + p) * 0.12 * (1 - sip);   // turns to talk
+    av.head.position.y = av.hip + 0.81 + Math.sin(t * 1.7 + p) * 0.012 - sip * 0.02;
+  }
+}
+buildAvatars();
+
+/* ----------------------------------------------------------------------
+   PLAYLIST MANIFEST
+   Looks for playlist.json beside this page (override with ?playlist=URL).
+   Missing or broken manifest just means the file picker is the only source.
+   ---------------------------------------------------------------------- */
+const PLAYLIST_URL = new URLSearchParams(location.search).get('playlist') || 'playlist.json';
+
+fetch(PLAYLIST_URL, { cache: 'no-cache' })
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .then(data => {
+    const root = new URL(PLAYLIST_URL, location.href);
+    const base = data.baseUrl || '';
+    const list = (data.tracks || []).map(t => {
+      const file = t.file || t.url || '';
+      const title = t.title || file.split('/').pop().replace(/\.[^.]+$/, '');
+      return {
+        name: t.artist ? title + '  \u2014  ' + t.artist : title,
+        url: new URL(base + file, root).href
+      };
+    }).filter(t => t.url);
+    if (data.chat) {
+      CHAT = data.chat;
+      // Ejak's character sheet lives in a markdown file you can edit any time;
+      // it rides along with every message rather than being baked into the page.
+      if (CHAT.persona) {
+        fetch(new URL(CHAT.persona, root).href, { cache: 'no-cache' })
+          .then(r => r.ok ? r.text() : Promise.reject(r.status))
+          .then(txt => { EJAK_MD = txt.slice(0, 12000); })
+          .catch(() => { EJAK_MD = ''; });
+      }
+    }
+    if (data.exit) {
+      EXIT_URL = data.exit.url || null;
+      if (data.exit.label) EXIT_LABEL = data.exit.label;
+    }
+    PLAYER.addRemote(list, false);          // loaded and queued, but silent
+    const src = document.getElementById('jb-src');
+    if (!list.length) PLAYER.setStatus('playlist.json lists no tracks');
+    if (src) src.textContent = list.length
+      ? list.length + ' tracks loaded \u2014 press play'
+      : 'playlist.json is empty';
+  })
+  .catch(err => {
+    PLAYER.setStatus('playlist unavailable');
+    const src = document.getElementById('jb-src');
+    if (src) src.textContent = 'could not load playlist.json (' + err + ')';
+  });
+
+// ---------------------------------------------------------------- jukebox UI
+const jb = document.getElementById('jb');
+const raycaster = new THREE.Raycaster();
+
+function openPanel() {
+  if (jbOpen) return;
+  jbOpen = true; syncPanels();
+  jb.style.display = 'block';
+  dragging = false;
+  PLAYER.render();
+}
+function closePanel() {
+  jbOpen = false; syncPanels();
+  jb.style.display = 'none';
+}
+
+// any panel can be dragged out of the way by its header
+function makeDraggable(panel, head) {
+  let offX = 0, offY = 0, moving = false;
+  function start(cx, cy) {
+    const r = panel.getBoundingClientRect();
+    panel.style.left = r.left + 'px';
+    panel.style.top = r.top + 'px';
+    panel.style.right = 'auto';
+    panel.style.transform = 'none';       // drop the centring so left/top take over
+    offX = cx - r.left; offY = cy - r.top;
+    moving = true;
+  }
+  function move(cx, cy) {
+    if (!moving) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    panel.style.left = Math.max(4, Math.min(innerWidth - w - 4, cx - offX)) + 'px';
+    panel.style.top  = Math.max(4, Math.min(innerHeight - h - 4, cy - offY)) + 'px';
+  }
+  head.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    start(e.clientX, e.clientY); e.preventDefault();
+  });
+  addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  addEventListener('mouseup', () => { moving = false; });
+  head.addEventListener('touchstart', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    const t = e.changedTouches[0]; start(t.clientX, t.clientY);
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (!moving) return;
+    const t = e.changedTouches[0]; move(t.clientX, t.clientY);
+  }, { passive: true });
+  ['touchend', 'touchcancel'].forEach(ev => addEventListener(ev, () => { moving = false; }));
+}
+if (!touch) makeDraggable(jb, document.querySelector('#jb .jb-head'));
+
+document.getElementById('jb-close').addEventListener('click', closePanel);
+document.getElementById('jb-prev').addEventListener('click', () => PLAYER.prev());
+document.getElementById('jb-next').addEventListener('click', () => PLAYER.next());
+document.getElementById('jb-play').addEventListener('click', () => PLAYER.toggle());
+document.getElementById('jb-vol').addEventListener('input', e => PLAYER.setVolume(+e.target.value));
+
+// what, if anything, is under the cursor and close enough to interact with
+function pickTarget() {
+  raycaster.setFromCamera(mouseNDC, camera);
+  const hit = raycaster.intersectObjects([JUKEBOX.group, DOOR, BARTENDER.group], true)[0];
+  if (!hit || hit.distance > 5.0) return null;
+  for (let o = hit.object; o; o = o.parent) {
+    if (o === JUKEBOX.group) return 'jukebox';
+    if (o === DOOR) return 'door';
+    if (o === BARTENDER.group) return 'ejak';
+  }
+  return null;
+}
+
+/* ----------------------------------------------------------------------
+   TALKING TO EJAK
+   The page posts the running conversation to whatever endpoint is named in
+   playlist.json and shows what comes back. Nothing is stored anywhere; the
+   history lives in this tab and dies with it.
+   ---------------------------------------------------------------------- */
+let CHAT = null;
+let EJAK_MD = '';          // contents of the markdown named in playlist.json
+const chatBox = document.getElementById('chat');
+const chatLog = document.getElementById('chat-log');
+const chatIn  = document.getElementById('chat-in');
+const chatHistory = [];
+let chatBusy = false, chatGreeted = false;
+if (!touch) makeDraggable(chatBox, document.querySelector('#chat .jb-head'));
+
+function chatSay(who, text, cls) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + who;
+  if (who !== 'note') {
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = who === 'ejak' ? 'E-JAK' : 'YOU';
+    wrap.appendChild(label);
+  }
+  const el = document.createElement('div');
+  el.className = 'msg ' + who + (cls ? ' ' + cls : '');
+  el.textContent = text;
+  wrap.appendChild(el);
+  chatLog.appendChild(wrap);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+function openChat() {
+  if (chatOpen) return;
+  chatOpen = true; syncPanels();
+  chatBox.style.display = 'block';
+  dragging = false;
+  if (!chatGreeted) {
+    chatGreeted = true;
+    if (!CHAT || !CHAT.url) {
+      chatSay('note', 'no chat endpoint set in playlist.json');
+    } else {
+      chatSay('ejak', CHAT.greeting || 'Welcome to The Pub, want a beer?');
+    }
+  }
+  setTimeout(() => chatIn.focus(), 30);
+}
+function closeChat() {
+  chatOpen = false; syncPanels();
+  chatBox.style.display = 'none';
+  chatIn.blur();
+}
+document.getElementById('chat-close').addEventListener('click', closeChat);
+
+async function chatSend() {
+  const text = chatIn.value.trim();
+  if (!text || chatBusy) return;
+  if (!CHAT || !CHAT.url) { chatSay('note', 'no chat endpoint set'); return; }
+  chatIn.value = '';
+  chatSay('you', text);
+  chatHistory.push({ role: 'user', content: text });
+  chatBusy = true;
+  const bubble = chatSay('ejak', 'typing…', 'pending');
+  try {
+    const res = await fetch(CHAT.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: chatHistory.slice(),
+        context: EJAK_MD || CHAT.system || '',   // the markdown, verbatim
+        model: CHAT.model
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    // models routinely open with a newline; pre-wrap would render it as a gap
+    const reply = String(data.reply
+      || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+      || '(empty reply)').trim();
+    bubble.textContent = reply;
+    bubble.classList.remove('pending');
+    chatHistory.push({ role: 'assistant', content: reply });
+    if (chatHistory.length > 24) chatHistory.splice(0, chatHistory.length - 24);
+  } catch (err) {
+    // "Failed to fetch" means the browser blocked it before any reply arrived:
+    // wrong URL, or CORS. Say which, rather than showing a bare browser string.
+    const hint = /fetch/i.test(err.message)
+      ? 'could not reach the bar — check chat.url in playlist.json, and that this site is listed in ALLOWED_ORIGINS'
+      : err.message;
+    bubble.textContent = 'line went dead — ' + hint;
+    bubble.classList.remove('pending');
+    bubble.classList.add('err');
+  }
+  chatBusy = false;
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+document.getElementById('chat-send').addEventListener('click', chatSend);
+chatIn.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
+  e.stopPropagation();                      // R and J are shortcuts, not letters, in here
+});
+
+let EXIT_URL = null, EXIT_LABEL = 'Leave The Pub?';
+const exitBox = document.getElementById('exit');
+function openExit() {
+  if (exitOpen) return;
+  exitOpen = true; syncPanels();
+  exitBox.style.display = 'block';
+  dragging = false;
+  document.querySelector('#exit .exit-q').textContent = EXIT_LABEL;
+  const go = document.getElementById('exit-go');
+  const sub = document.getElementById('exit-sub');
+  if (EXIT_URL) {
+    go.removeAttribute('disabled');
+    try { sub.textContent = new URL(EXIT_URL, location.href).hostname; }
+    catch (e) { sub.textContent = ''; }
+  } else {
+    go.setAttribute('disabled', 'disabled');
+    sub.textContent = 'no exit set in playlist.json';
+  }
+}
+function closeExit() { exitOpen = false; syncPanels(); exitBox.style.display = 'none'; }
+document.getElementById('exit-stay').addEventListener('click', closeExit);
+document.getElementById('exit-go').addEventListener('click', () => {
+  if (EXIT_URL) location.href = EXIT_URL;
+});
+
+// ---------------------------------------------------------------- loop
+const velocity = new THREE.Vector3();
+const clock = new THREE.Clock();
+// Nothing on screen needs 60fps while you stand still, but a drag does - your
+// eye judges motion it controls far more harshly than motion it watches. So run
+// flat out while anything is happening and ease off two seconds after it stops.
+const IDLE_AFTER = 2.0;              // seconds of stillness before easing off
+const IDLE_FPS   = 30;
+let idleFor = 0, lastDraw = 0;
+const bump = () => { idleFor = 0; };  // any input wakes it immediately
+
+const statsBox = document.getElementById('stats');
+let statsOn = false, statsTick = 0, frames = 0;
+let lightCount = 0;
+scene.traverse(o => { if (o.isLight && o.isPointLight) lightCount++; });
+
+let elapsed = 0, repaint = 0, rainTick = 0, hoverTick = 0, feedTurn = 0;
+let frameAvg = 1 / 60, adaptTick = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Return before touching the clock, so the skipped time simply lands in the
+  // next delta and everything keeps moving at the right speed.
+  const now = performance.now();
+  if (idleFor > IDLE_AFTER && now - lastDraw < 1000 / IDLE_FPS) return;
+  lastDraw = now;
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+
+  // wall rain is a frozen still unless the R key turns it back on
+  if (rainLive) {
+    rainTick += dt;
+    if (rainTick > 0.066) {
+      RAIN.update(performance.now());
+      rainTextures.forEach(t => { t.needsUpdate = true; });
+      rainTick = 0;
+    }
+  }
+  if (FALL && !reduced) FALL.uniforms.uTime.value = elapsed;
+
+  // if frames are running long, quietly render fewer pixels
+  frameAvg += (dt - frameAvg) * 0.05;
+  adaptTick += dt;
+  if (adaptTick > 2) {
+    adaptTick = 0;
+    const want = frameAvg > 1 / 40 ? Math.max(0.75, pixelRatio - 0.25)
+               : frameAvg < 1 / 57 ? Math.min(PR_CAP, pixelRatio + 0.25) : pixelRatio;
+    if (want !== pixelRatio) {
+      pixelRatio = want;
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(innerWidth, innerHeight);
+      updateFallScale();
+    }
+  }
+  JUKEBOX.update(elapsed, dt);
+  BARTENDER.update(elapsed, dt);
+  PATRON.update(elapsed, dt);
+  updateAvatars(dt, elapsed);
+
+  // No hover labels - the cursor turning into a pointer is enough of a cue.
+  hoverTick += dt;
+  if (started && !exitOpen && !touch && hoverTick > 0.1) {
+    hoverTick = 0;
+    if (!dragging) setCursor(pickTarget() ? 'pointer' : 'grab');
+  }
+
+  // screens only need ~12fps, which keeps the canvas work off the critical path
+  // one feed per tick instead of all five, so the upload cost is spread out
+  repaint += dt;
+  if (repaint > 1 / 12) { paint(feeds[feedTurn++ % feeds.length], elapsed); repaint = 0; }
+
+  // walking comes from the keyboard, the thumbstick, and the wheel.
+  // On a phone the chat is small enough to walk around with it open.
+  const held = exitOpen;                 // only the exit dialog stops you moving
+  const kf = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  const f = held ? 0 : Math.max(-1, Math.min(1, kf + touchDrive));
+  const s = held ? 0 : (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  const speed = (keys.ShiftLeft || keys.ShiftRight) ? 4.6 : 2.6;
+
+  const turn = held ? 0 : (keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0);
+  if (turn) yaw += turn * 1.7 * dt;
+
+  const dir = new THREE.Vector3(
+    Math.sin(yaw) * -f + Math.cos(yaw) * s,
+    0,
+    Math.cos(yaw) * -f - Math.sin(yaw) * s
+  );
+  if (dir.lengthSq() > 0) dir.normalize();
+
+  velocity.lerp(dir.multiplyScalar(speed), 1 - Math.pow(0.0008, dt));
+  camera.position.addScaledVector(velocity, dt);
+
+  // wheel steps glide in rather than teleporting
+  if (Math.abs(scrollStep) > 0.0005) {
+    const take = scrollStep * Math.min(1, dt * 9);
+    camera.position.x += -Math.sin(yaw) * take;
+    camera.position.z += -Math.cos(yaw) * take;
+    scrollStep -= take;
+  }
+  camera.position.y = EYE;
+  resolve(camera.position);
+
+  camera.rotation.set(pitch, yaw, 0);   // YXZ order, so roll stays at zero
+  renderer.render(scene, camera);
+
+  const busy = dragging || pinching || f || s || turn
+            || velocity.lengthSq() > 1e-5 || Math.abs(scrollStep) > 0.002;
+  idleFor = busy ? 0 : idleFor + dt;
+
+  // press P for the actual numbers rather than an estimate
+  frames++;
+  statsTick += dt;
+  if (statsOn && statsTick > 0.4) {
+    const r = renderer.info.render, m = renderer.info.memory;
+    statsBox.textContent =
+      'fps        ' + Math.round(frames / statsTick) + '\n' +
+      'draw calls ' + r.calls + '\n' +
+      'triangles  ' + r.triangles.toLocaleString() + '\n' +
+      'geometries ' + m.geometries + '\n' +
+      'textures   ' + m.textures + '\n' +
+      'lights     ' + lightCount + '\n' +
+      'mode       ' + (idleFor > IDLE_AFTER ? 'idle ' + IDLE_FPS + 'fps' : 'active') + '\n' +
+      'pixelRatio ' + pixelRatio.toFixed(2) + '  (' +
+        Math.round(innerWidth * pixelRatio) + 'x' + Math.round(innerHeight * pixelRatio) + ')';
+    statsTick = 0; frames = 0;
+  } else if (statsTick > 0.4) { statsTick = 0; frames = 0; }
+}
+renderer.compile(scene, camera);   // build every shader up front, not mid-drag
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  updateFallScale();
+  measureLook();
+});
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@
   },
   "exit": {
     "label": "Leave The Pub?",
-    "url": "https://shaden.technology/nexus/"
+    "url": "https://shaden.technology/nexus/?return=pub&spawn=pub-exit"
   },
   "tracks": [
     {
